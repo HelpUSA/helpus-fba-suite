@@ -2,20 +2,24 @@
 
 import React from 'react';
 import { PrepShipment } from '@/data/mockProducts';
-import { Truck, Package, CheckCircle2, Clock, ExternalLink, ShieldCheck, Box } from 'lucide-react';
+import { Language, i18n } from '@/data/i18n';
+import { Truck, Package, CheckCircle2, ExternalLink, ShieldCheck, Box } from 'lucide-react';
 
 interface PrepTrackerViewProps {
   shipments: PrepShipment[];
+  language: Language;
 }
 
-export default function PrepTrackerView({ shipments }: PrepTrackerViewProps) {
+export default function PrepTrackerView({ shipments, language }: PrepTrackerViewProps) {
+  const t = i18n[language];
+
   const steps = [
-    { label: 'Pedido Fornecedor', key: 'Ordered' },
-    { label: 'Em Trânsito Prep', key: 'In Transit to Prep' },
-    { label: 'No Prep Ninjas', key: 'At Prep Ninjas' },
-    { label: 'Etiquetado FNSKU', key: 'Prepped & Labeled' },
-    { label: 'Enviado p/ FBA', key: 'En Route to FBA' },
-    { label: 'Recebido Amazon', key: 'Received by Amazon' },
+    { label: t.step1, key: 'Ordered' },
+    { label: t.step2, key: 'In Transit to Prep' },
+    { label: t.step3, key: 'At Prep Ninjas' },
+    { label: t.step4, key: 'Prepped & Labeled' },
+    { label: t.step5, key: 'En Route to FBA' },
+    { label: t.step6, key: 'Received by Amazon' },
   ];
 
   const getStepIndex = (status: string) => {
@@ -31,16 +35,16 @@ export default function PrepTrackerView({ shipments }: PrepTrackerViewProps) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 select-none">
       {/* Title */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
             <Truck className="w-5 h-5 text-amber-400" />
-            <span>Rastreamento Logístico Prep Ninjas (3PL)</span>
+            <span>{t.trackerTitle}</span>
           </h2>
           <p className="text-xs text-slate-400">
-            Acompanhamento em tempo real do fluxo do fornecedor até o galpão da Amazon FBA nos EUA.
+            {t.trackerSubtitle}
           </p>
         </div>
 
@@ -51,7 +55,7 @@ export default function PrepTrackerView({ shipments }: PrepTrackerViewProps) {
             rel="noreferrer"
             className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold flex items-center space-x-2 transition"
           >
-            <span>Acessar Painel Prep Ninjas</span>
+            <span>{t.prepDashboardBtn}</span>
             <ExternalLink className="w-3.5 h-3.5" />
           </a>
         </div>
@@ -64,8 +68,8 @@ export default function PrepTrackerView({ shipments }: PrepTrackerViewProps) {
             <Box className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-slate-400">Endereço do Galpão Prep:</div>
-            <div className="font-bold text-white">Gulf Shores / US Warehouse</div>
+            <div className="text-slate-400">Warehouse:</div>
+            <div className="font-bold text-white">{t.warehouseAddr}</div>
           </div>
         </div>
 
@@ -74,8 +78,8 @@ export default function PrepTrackerView({ shipments }: PrepTrackerViewProps) {
             <Package className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-slate-400">Total de Unidades em Trânsito:</div>
-            <div className="font-bold text-white">200 Unidades (3 Lotes)</div>
+            <div className="text-slate-400">Units in Transit:</div>
+            <div className="font-bold text-white">{t.unitsInTransit}</div>
           </div>
         </div>
 
@@ -84,8 +88,8 @@ export default function PrepTrackerView({ shipments }: PrepTrackerViewProps) {
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-slate-400">Serviço de Preparo:</div>
-            <div className="font-bold text-emerald-400">Inspeção + FNSKU Label</div>
+            <div className="text-slate-400">Prep Service:</div>
+            <div className="font-bold text-emerald-400">{t.prepService}</div>
           </div>
         </div>
       </div>
@@ -101,18 +105,18 @@ export default function PrepTrackerView({ shipments }: PrepTrackerViewProps) {
                   <div className="flex items-center space-x-2">
                     <span className="font-bold text-white text-sm">{shipment.productTitle}</span>
                     <span className="bg-blue-500/20 text-blue-300 text-[10px] px-2 py-0.5 rounded font-mono font-medium">
-                      {shipment.unitsCount} unidades
+                      {shipment.unitsCount} units
                     </span>
                   </div>
                   <div className="text-xs text-slate-400 flex items-center space-x-3 font-mono">
-                    <span>Fornecedor: <strong className="text-slate-200">{shipment.supplierName}</strong></span>
+                    <span>Supplier: <strong className="text-slate-200">{shipment.supplierName}</strong></span>
                     <span>•</span>
-                    <span>Rastreio UPS: <strong className="text-blue-400">{shipment.trackingNumber}</strong></span>
+                    <span>Tracking: <strong className="text-blue-400">{shipment.trackingNumber}</strong></span>
                   </div>
                 </div>
 
                 <div className="text-right">
-                  <span className="text-xs text-slate-400 block font-mono">Previsão Entrega:</span>
+                  <span className="text-xs text-slate-400 block font-mono">Est. Delivery:</span>
                   <span className="text-xs font-bold text-amber-400 font-mono">{shipment.estDeliveryDate}</span>
                 </div>
               </div>

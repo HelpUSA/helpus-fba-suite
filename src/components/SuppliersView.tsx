@@ -2,23 +2,27 @@
 
 import React from 'react';
 import { Supplier } from '@/data/mockProducts';
-import { Building2, ExternalLink, Star, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Language, i18n } from '@/data/i18n';
+import { Building2, ExternalLink, Star, CheckCircle2 } from 'lucide-react';
 
 interface SuppliersViewProps {
   suppliers: Supplier[];
+  language: Language;
 }
 
-export default function SuppliersView({ suppliers }: SuppliersViewProps) {
+export default function SuppliersView({ suppliers, language }: SuppliersViewProps) {
+  const t = i18n[language];
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 select-none">
       {/* Title */}
       <div>
         <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
           <Building2 className="w-5 h-5 text-blue-400" />
-          <span>Fornecedores Verificados dos EUA (Wholesale / B2B)</span>
+          <span>{t.supTitle}</span>
         </h2>
         <p className="text-xs text-slate-400">
-          Catálogo de distribuidores e atacadistas que vendem com invoice legal para LLCs e entregam no Prep Ninjas.
+          {t.supSubtitle}
         </p>
       </div>
 
@@ -33,7 +37,7 @@ export default function SuppliersView({ suppliers }: SuppliersViewProps) {
                     {s.shipToPrep && (
                       <span className="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded font-mono flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3" />
-                        Envio Prep Ninjas
+                        {t.supShipsToPrep}
                       </span>
                     )}
                   </h3>
@@ -53,7 +57,7 @@ export default function SuppliersView({ suppliers }: SuppliersViewProps) {
 
             <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
               <div className="font-mono text-slate-400">
-                MOQ Mínimo: <strong className="text-white">{s.moq}</strong>
+                {t.supMoq} <strong className="text-white">{s.moq}</strong>
               </div>
 
               <a
@@ -62,7 +66,7 @@ export default function SuppliersView({ suppliers }: SuppliersViewProps) {
                 rel="noreferrer"
                 className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold flex items-center space-x-1.5 transition text-xs"
               >
-                <span>Visitar Catálogo</span>
+                <span>{t.supVisitCatalog}</span>
                 <ExternalLink className="w-3.5 h-3.5" />
               </a>
             </div>

@@ -8,56 +8,59 @@ import {
   Truck,
   Building2,
   Presentation,
-  TrendingUp,
   Boxes,
   Sparkles,
   ExternalLink
 } from 'lucide-react';
+import { Language, i18n } from '@/data/i18n';
 
 interface SidebarProps {
   activeView: string;
   setActiveView: (view: string) => void;
   productsCount: number;
+  language: Language;
 }
 
-export default function Sidebar({ activeView, setActiveView, productsCount }: SidebarProps) {
+export default function Sidebar({ activeView, setActiveView, productsCount, language }: SidebarProps) {
+  const t = i18n[language];
+
   const menuItems = [
     {
       id: 'dashboard',
-      label: 'Visão Geral',
+      label: t.navOverview,
       icon: LayoutDashboard,
       badge: null,
     },
     {
       id: 'deal-finder',
-      label: 'Deal Finder (Minerador)',
+      label: t.navDealFinder,
       icon: Search,
       badge: productsCount.toString(),
       highlight: true,
     },
     {
       id: 'calculator',
-      label: 'Calculadora FBA & Prep',
+      label: t.navCalculator,
       icon: Calculator,
-      badge: 'Calculador',
+      badge: 'PRO',
     },
     {
       id: 'prep-tracker',
-      label: 'Rastreio Prep Ninjas',
+      label: t.navPrepTracker,
       icon: Truck,
-      badge: '3 Ativos',
+      badge: '3',
     },
     {
       id: 'suppliers',
-      label: 'Fornecedores EUA',
+      label: t.navSuppliers,
       icon: Building2,
-      badge: 'Verificados',
+      badge: 'B2B',
     },
     {
       id: 'pitch',
-      label: 'Apresentação SaaS',
+      label: t.navPitch,
       icon: Presentation,
-      badge: 'Comercial',
+      badge: 'SaaS',
     },
   ];
 
@@ -80,7 +83,7 @@ export default function Sidebar({ activeView, setActiveView, productsCount }: Si
         {/* Main Navigation */}
         <nav className="space-y-1">
           <div className="px-3 pb-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-            Navegação Principal
+            {t.mainNav}
           </div>
           {menuItems.map((item) => {
             const Icon = item.icon;
@@ -119,10 +122,10 @@ export default function Sidebar({ activeView, setActiveView, productsCount }: Si
         <div className="p-3 bg-gradient-to-br from-slate-900 to-slate-900/60 border border-slate-800 rounded-xl space-y-2">
           <div className="flex items-center space-x-2 text-xs font-semibold text-slate-200">
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Ferramentas Conectadas</span>
+            <span>{t.connectedTools}</span>
           </div>
           <p className="text-[11px] text-slate-400 leading-relaxed">
-            Plataforma configurada para os ecossistemas da Amazon US e Prep Ninjas.
+            {t.sidebarFooter}
           </p>
           <div className="pt-1 flex flex-col space-y-1">
             <a
@@ -153,7 +156,7 @@ export default function Sidebar({ activeView, setActiveView, productsCount }: Si
           <span>System Status</span>
           <span className="flex items-center space-x-1 text-emerald-400">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-            <span>Online</span>
+            <span>{t.statusOnline}</span>
           </span>
         </div>
       </div>
