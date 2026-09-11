@@ -22,7 +22,6 @@ export default function Footer({ language }: FooterProps) {
               alt="HelpUS LLC"
               className="h-9 w-auto object-contain"
               onError={(e) => {
-                // Fallback if image fails to render
                 (e.target as HTMLElement).style.display = 'none';
               }}
             />
@@ -74,7 +73,9 @@ export default function Footer({ language }: FooterProps) {
             </div>
             <div className="flex items-center space-x-2 text-slate-300">
               <Globe className="w-3 h-3 text-slate-500 shrink-0" />
-              <span className="text-blue-400">https://helpus-fba-suite.vercel.app</span>
+              <a href="https://fba.helpusbr.com" target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">
+                https://fba.helpusbr.com
+              </a>
             </div>
           </div>
         </div>
