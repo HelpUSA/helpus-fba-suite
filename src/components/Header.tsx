@@ -18,10 +18,18 @@ export default function Header({ activeView, setActiveView, language, setLanguag
     <header className="h-16 border-b border-slate-800 bg-slate-900/80 backdrop-blur px-6 flex items-center justify-between sticky top-0 z-30 select-none">
       {/* Left: Branding & Organization */}
       <div className="flex items-center space-x-4">
-        <div className="flex items-center space-x-3 bg-slate-800/90 hover:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/60 cursor-pointer transition">
-          <div className="w-7 h-7 rounded bg-blue-600 flex items-center justify-center text-white font-bold text-xs shadow-sm">
-            HU
-          </div>
+        <div
+          onClick={() => setActiveView('dashboard')}
+          className="flex items-center space-x-3 bg-slate-800/90 hover:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/60 cursor-pointer transition"
+        >
+          <img
+            src="/images/helpus_logo.png"
+            alt="HelpUS LLC Logo"
+            className="w-7 h-7 object-contain"
+            onError={(e) => {
+              (e.target as HTMLElement).style.display = 'none';
+            }}
+          />
           <div>
             <div className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
               <span>{t.activeAccount}</span>

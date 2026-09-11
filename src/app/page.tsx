@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
+import Footer from '@/components/Footer';
 import DashboardView from '@/components/DashboardView';
 import DealFinderView from '@/components/DealFinderView';
 import CalculatorView from '@/components/CalculatorView';
@@ -44,41 +45,46 @@ export default function Home() {
         />
 
         {/* Content Area */}
-        <main className="flex-1 p-6 md:p-8 overflow-y-auto max-w-7xl">
-          {activeView === 'dashboard' && (
-            <DashboardView
-              products={products}
-              shipments={shipments}
-              setActiveView={setActiveView}
-              language={language}
-            />
-          )}
+        <div className="flex-1 flex flex-col min-h-0">
+          <main className="flex-1 p-6 md:p-8 overflow-y-auto max-w-7xl">
+            {activeView === 'dashboard' && (
+              <DashboardView
+                products={products}
+                shipments={shipments}
+                setActiveView={setActiveView}
+                language={language}
+              />
+            )}
 
-          {activeView === 'deal-finder' && (
-            <DealFinderView
-              products={products}
-              onAddProduct={handleAddProduct}
-              setActiveView={setActiveView}
-              language={language}
-            />
-          )}
+            {activeView === 'deal-finder' && (
+              <DealFinderView
+                products={products}
+                onAddProduct={handleAddProduct}
+                setActiveView={setActiveView}
+                language={language}
+              />
+            )}
 
-          {activeView === 'calculator' && (
-            <CalculatorView language={language} />
-          )}
+            {activeView === 'calculator' && (
+              <CalculatorView language={language} />
+            )}
 
-          {activeView === 'prep-tracker' && (
-            <PrepTrackerView shipments={shipments} language={language} />
-          )}
+            {activeView === 'prep-tracker' && (
+              <PrepTrackerView shipments={shipments} language={language} />
+            )}
 
-          {activeView === 'suppliers' && (
-            <SuppliersView suppliers={suppliers} language={language} />
-          )}
+            {activeView === 'suppliers' && (
+              <SuppliersView suppliers={suppliers} language={language} />
+            )}
 
-          {activeView === 'pitch' && (
-            <SaaSPitchView language={language} />
-          )}
-        </main>
+            {activeView === 'pitch' && (
+              <SaaSPitchView language={language} />
+            )}
+          </main>
+
+          {/* Footer Component */}
+          <Footer language={language} />
+        </div>
       </div>
     </div>
   );

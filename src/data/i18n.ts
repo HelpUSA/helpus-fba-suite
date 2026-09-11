@@ -136,6 +136,15 @@ export interface TranslationDictionary {
   btnStartTrial: string;
   btnSubscribePro: string;
   btnContactSales: string;
+
+  // Footer
+  footerDesc: string;
+  footerAddressTitle: string;
+  footerAddress: string;
+  footerContactTitle: string;
+  footerPhone: string;
+  footerEmail: string;
+  footerRights: string;
 }
 
 export const i18n: Record<Language, TranslationDictionary> = {
@@ -275,6 +284,15 @@ export const i18n: Record<Language, TranslationDictionary> = {
     btnStartTrial: 'Começar Teste',
     btnSubscribePro: 'Assinar Pro Suite',
     btnContactSales: 'Falar com Vendas',
+
+    // Footer
+    footerDesc: 'Plataforma oficial de automação de e-commerce, mineração de produtos e inteligência de vendas para Amazon FBA.',
+    footerAddressTitle: 'Endereço Comercial Registrado',
+    footerAddress: '241 E 16st STE B4, Gulf Shores, AL 36542, Estados Unidos',
+    footerContactTitle: 'Contato Oficial HelpUS LLC',
+    footerPhone: '+1 (334) 219-3221 / +55 (83) 99872-1848',
+    footerEmail: 'contact@helpusllc.com',
+    footerRights: '© 2026 HelpUS LLC. Todos os direitos reservados.',
   },
 
   en: {
@@ -413,6 +431,15 @@ export const i18n: Record<Language, TranslationDictionary> = {
     btnStartTrial: 'Start Free Trial',
     btnSubscribePro: 'Subscribe Pro Suite',
     btnContactSales: 'Contact Sales',
+
+    // Footer
+    footerDesc: 'Official e-commerce automation, product sourcing, and sales intelligence platform for Amazon FBA.',
+    footerAddressTitle: 'Registered Business Address',
+    footerAddress: '241 E 16st STE B4, Gulf Shores, AL 36542, United States',
+    footerContactTitle: 'HelpUS LLC Official Contact',
+    footerPhone: '+1 (334) 219-3221 / +55 (83) 99872-1848',
+    footerEmail: 'contact@helpusllc.com',
+    footerRights: '© 2026 HelpUS LLC. All rights reserved.',
   },
 
   es: {
@@ -551,5 +578,14 @@ export const i18n: Record<Language, TranslationDictionary> = {
     btnStartTrial: 'Iniciar Prueba',
     btnSubscribePro: 'Suscribir Pro Suite',
     btnContactSales: 'Contactar Ventas',
+
+    // Footer
+    footerDesc: 'Plataforma oficial de automatización de comercio electrónico, minería de productos e inteligencia de ventas para Amazon FBA.',
+    footerAddressTitle: 'Dirección Comercial Registrada',
+    footerAddress: '241 E 16st STE B4, Gulf Shores, AL 36542, Estados Unidos',
+    footerContactTitle: 'Contacto Oficial HelpUS LLC',
+    footerPhone: '+1 (334) 219-3221 / +55 (83) 99872-1848',
+    footerEmail: 'contact@helpusllc.com',
+    footerRights: '© 2026 HelpUS LLC. Todos los derechos reservados.',
   }
 };
