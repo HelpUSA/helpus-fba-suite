@@ -14,7 +14,9 @@ import {
   Search,
   ShieldCheck,
   TrendingUp,
-  DollarSign
+  DollarSign,
+  FileText,
+  Boxes
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -162,12 +164,38 @@ export default function HomePage() {
         <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono text-slate-400">
           {t.quickToolsTitle}
         </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <Link
+            href="/nfe"
+            className="p-4 bg-slate-950 hover:bg-slate-800/60 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3 transition group"
+          >
+            <div className="p-2.5 bg-blue-500/10 text-blue-400 rounded-xl w-fit group-hover:scale-110 transition">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-white">{t.navNfe}</div>
+              <div className="text-[10px] text-slate-400">SEFAZ XML & Custos</div>
+            </div>
+          </Link>
+
+          <Link
+            href="/estoque"
+            className="p-4 bg-slate-950 hover:bg-slate-800/60 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3 transition group"
+          >
+            <div className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-xl w-fit group-hover:scale-110 transition">
+              <Boxes className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-white">{t.navEstoque}</div>
+              <div className="text-[10px] text-slate-400">4 Nós Logísticos</div>
+            </div>
+          </Link>
+
           <Link
             href="/calc"
-            className="p-4 bg-slate-950 hover:bg-slate-800/60 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3 transition"
+            className="p-4 bg-slate-950 hover:bg-slate-800/60 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3 transition group"
           >
-            <div className="p-2.5 bg-blue-500/10 text-blue-400 rounded-xl w-fit">
+            <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl w-fit group-hover:scale-110 transition">
               <Calculator className="w-5 h-5" />
             </div>
             <div>
@@ -178,9 +206,9 @@ export default function HomePage() {
 
           <Link
             href="/prep"
-            className="p-4 bg-slate-950 hover:bg-slate-800/60 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3 transition"
+            className="p-4 bg-slate-950 hover:bg-slate-800/60 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3 transition group"
           >
-            <div className="p-2.5 bg-amber-500/10 text-amber-400 rounded-xl w-fit">
+            <div className="p-2.5 bg-amber-500/10 text-amber-400 rounded-xl w-fit group-hover:scale-110 transition">
               <Truck className="w-5 h-5" />
             </div>
             <div>
@@ -191,9 +219,9 @@ export default function HomePage() {
 
           <Link
             href="/suppliers"
-            className="p-4 bg-slate-950 hover:bg-slate-800/60 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3 transition"
+            className="p-4 bg-slate-950 hover:bg-slate-800/60 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3 transition group"
           >
-            <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl w-fit">
+            <div className="p-2.5 bg-cyan-500/10 text-cyan-400 rounded-xl w-fit group-hover:scale-110 transition">
               <Building2 className="w-5 h-5" />
             </div>
             <div>
@@ -204,9 +232,9 @@ export default function HomePage() {
 
           <Link
             href="/deals"
-            className="p-4 bg-slate-950 hover:bg-slate-800/60 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3 transition"
+            className="p-4 bg-slate-950 hover:bg-slate-800/60 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3 transition group"
           >
-            <div className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-xl w-fit">
+            <div className="p-2.5 bg-purple-500/10 text-purple-400 rounded-xl w-fit group-hover:scale-110 transition">
               <Search className="w-5 h-5" />
             </div>
             <div>

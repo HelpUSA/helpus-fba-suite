@@ -12,7 +12,9 @@ import {
   Search,
   Sparkles,
   ExternalLink,
-  X
+  X,
+  FileText,
+  Boxes
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -43,6 +45,20 @@ export default function Sidebar() {
   ];
 
   const toolsItems = [
+    {
+      href: '/nfe',
+      label: t.navNfe,
+      icon: FileText,
+      badge: 'XML',
+      highlight: true,
+    },
+    {
+      href: '/estoque',
+      label: t.navEstoque,
+      icon: Boxes,
+      badge: 'MULTI',
+      highlight: true,
+    },
     {
       href: '/calc',
       label: t.navCalculator,

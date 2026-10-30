@@ -16,6 +16,8 @@ export interface TranslationDictionary {
   navOverview: string;
   navUSA: string;
   navBrasil: string;
+  navNfe: string;
+  navEstoque: string;
   navCalculator: string;
   navPrepTracker: string;
   navSuppliers: string;
@@ -229,6 +231,8 @@ export const i18n: Record<Language, TranslationDictionary> = {
     navOverview: 'Visão Executiva',
     navUSA: '🇺🇸 Operação EUA (FBA)',
     navBrasil: '🇧🇷 Operação Brasil (NF-e)',
+    navNfe: 'Entrada de Notas (XML)',
+    navEstoque: 'Estoque Multi-Armazém',
     navCalculator: 'Calculadora FBA & Prep',
     navPrepTracker: 'Rastreio & Logística',
     navSuppliers: 'Fornecedores Homologados',
@@ -441,6 +445,8 @@ export const i18n: Record<Language, TranslationDictionary> = {
     navOverview: 'Executive Overview',
     navUSA: '🇺🇸 US Operation (FBA)',
     navBrasil: '🇧🇷 Brazil Operation (NF-e)',
+    navNfe: 'Inbound Invoices (XML)',
+    navEstoque: 'Multi-Warehouse Stock',
     navCalculator: 'FBA & Prep Calculator',
     navPrepTracker: 'Logistics & Tracking',
     navSuppliers: 'Verified Suppliers',
@@ -653,6 +659,8 @@ export const i18n: Record<Language, TranslationDictionary> = {
     navOverview: 'Visión Ejecutiva',
     navUSA: '🇺🇸 Operación EE.UU. (FBA)',
     navBrasil: '🇧🇷 Operación Brasil (NF-e)',
+    navNfe: 'Entrada de Facturas (XML)',
+    navEstoque: 'Inventario Multi-Almacén',
     navCalculator: 'Calculadora FBA y Prep',
     navPrepTracker: 'Seguimiento y Logística',
     navSuppliers: 'Proveedores Homologados',
