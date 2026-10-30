@@ -137,7 +137,7 @@ export default function UsaOperationPage() {
             <img
               src={product.imageUrl}
               alt={product.title}
-              className="w-48 h-48 sm:w-40 sm:h-40 lg:w-48 lg:h-48 object-cover rounded-2xl border border-slate-800 shadow-md shrink-0"
+              className="w-48 h-48 sm:w-40 sm:h-40 lg:w-48 lg:h-48 object-contain bg-white rounded-2xl p-2 border border-slate-800 shadow-md shrink-0"
             />
             <div className="space-y-1.5 text-xs font-mono w-full text-center sm:text-left lg:text-center">
               <div className="text-sm font-bold text-white font-sans">{product.title}</div>

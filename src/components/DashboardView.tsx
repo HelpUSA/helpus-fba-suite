@@ -403,7 +403,7 @@ export default function DashboardView({ products, shipments, setActiveView, lang
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center space-x-3">
-                        <img src={p.imageUrl} alt={p.title} className="w-9 h-9 rounded object-cover border border-slate-800 shrink-0" />
+                        <img src={p.imageUrl} alt={p.title} className="w-9 h-9 rounded-lg object-contain bg-white p-0.5 border border-slate-700 shrink-0" />
                         <div>
                           <div className="font-semibold text-white truncate max-w-xs font-sans">{p.title}</div>
                           <div className="text-[10px] text-slate-400 font-mono">

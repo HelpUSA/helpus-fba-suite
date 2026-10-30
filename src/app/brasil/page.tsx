@@ -169,7 +169,7 @@ export default function BrasilOperationPage() {
                 <tr key={p.id} className="hover:bg-slate-800/40 transition">
                   <td className="py-3.5 px-4">
                     <div className="flex items-center space-x-3">
-                      <img src={p.imageUrl} alt={p.title} className="w-10 h-10 rounded-xl object-cover border border-slate-800 shrink-0" />
+                      <img src={p.imageUrl} alt={p.title} className="w-10 h-10 rounded-xl object-contain bg-white p-0.5 border border-slate-700 shrink-0 shadow-sm" />
                       <div>
                         <div className="font-semibold text-white font-sans text-xs truncate max-w-xs">{p.title}</div>
                         <div className="text-[10px] text-slate-500 font-mono">SKU: {p.sku} • NCM: {p.ncm}</div>
