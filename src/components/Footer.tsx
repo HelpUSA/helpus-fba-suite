@@ -1,32 +1,28 @@
 'use client';
 
 import React from 'react';
-import { Language, i18n } from '@/data/i18n';
+import { useLanguage } from '@/context/LanguageContext';
 import { MapPin, Phone, Mail, Globe, ExternalLink, ShieldCheck } from 'lucide-react';
 
-interface FooterProps {
-  language: Language;
-}
-
-export default function Footer({ language }: FooterProps) {
-  const t = i18n[language];
+export default function Footer() {
+  const { t } = useLanguage();
 
   return (
-    <footer className="bg-slate-950 border-t border-slate-900 pt-12 pb-8 px-6 text-slate-400 text-xs select-none">
-      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8 pb-10 border-b border-slate-900">
+    <footer className="bg-slate-950 border-t border-slate-900 pt-10 pb-8 px-4 sm:px-6 text-slate-400 text-xs select-none">
+      <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 pb-8 border-b border-slate-900">
         {/* Col 1: Branding & Description */}
-        <div className="space-y-4 md:col-span-1">
+        <div className="space-y-4">
           <div className="flex items-center space-x-3">
             <img
               src="/images/helpus_logo.png"
               alt="HelpUS LLC"
-              className="h-9 w-auto object-contain"
+              className="h-8 w-auto object-contain"
               onError={(e) => {
                 (e.target as HTMLElement).style.display = 'none';
               }}
             />
             <div className="font-bold text-white text-base tracking-tight">
-              HelpUS <span className="text-blue-400">LLC</span>
+              HelpUS <span className="text-blue-400">Global</span>
             </div>
           </div>
 
@@ -35,94 +31,89 @@ export default function Footer({ language }: FooterProps) {
           </p>
 
           <div className="flex items-center space-x-2 text-[11px] text-emerald-400 font-mono">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span>US Registered Entity • EIN Active</span>
+            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>HelpUS LLC (US) • HelpUS Brasil (MEI)</span>
           </div>
         </div>
 
-        {/* Col 2: Registered Business Address */}
+        {/* Col 2: Registered Business Address (US) */}
         <div className="space-y-3">
           <h4 className="font-bold text-slate-200 uppercase tracking-wider text-[11px] font-mono flex items-center gap-1.5">
-            <MapPin className="w-3.5 h-3.5 text-blue-400" />
+            <MapPin className="w-3.5 h-3.5 text-blue-400 shrink-0" />
             <span>{t.footerAddressTitle}</span>
           </h4>
           <p className="text-slate-300 leading-relaxed font-mono text-[11px]">
             {t.footerAddress}
           </p>
           <div className="text-[10px] text-slate-500 font-mono">
-            State of Alabama • Gulf Shores, AL 36542
+            Filial BR: Bessa, João Pessoa/PB (CEP 58035-360)
           </div>
         </div>
 
         {/* Col 3: Official Contact */}
         <div className="space-y-3">
           <h4 className="font-bold text-slate-200 uppercase tracking-wider text-[11px] font-mono flex items-center gap-1.5">
-            <Phone className="w-3.5 h-3.5 text-emerald-400" />
+            <Phone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             <span>{t.footerContactTitle}</span>
           </h4>
-          <div className="space-y-2 font-mono text-[11px]">
-            <div className="flex items-center space-x-2 text-slate-300">
-              <Phone className="w-3 h-3 text-slate-500 shrink-0" />
+          <div className="space-y-1.5 font-mono text-[11px]">
+            <div className="text-slate-300 flex items-center gap-2">
+              <span className="text-slate-500">Tel:</span>
               <span>{t.footerPhone}</span>
             </div>
-            <div className="flex items-center space-x-2 text-slate-300">
-              <Mail className="w-3 h-3 text-slate-500 shrink-0" />
-              <a href="mailto:contact@helpusllc.com" className="hover:text-blue-400 transition">
+            <div className="text-slate-300 flex items-center gap-2">
+              <span className="text-slate-500">E-mail:</span>
+              <a href={`mailto:${t.footerEmail}`} className="text-blue-400 hover:underline">
                 {t.footerEmail}
-              </a>
-            </div>
-            <div className="flex items-center space-x-2 text-slate-300">
-              <Globe className="w-3 h-3 text-slate-500 shrink-0" />
-              <a href="https://fba.helpusbr.com" target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">
-                https://fba.helpusbr.com
               </a>
             </div>
           </div>
         </div>
 
-        {/* Col 4: Ecosystem & Partners */}
+        {/* Col 4: Quick Portals */}
         <div className="space-y-3">
-          <h4 className="font-bold text-slate-200 uppercase tracking-wider text-[11px] font-mono">
-            Ecosystem Partners
+          <h4 className="font-bold text-slate-200 uppercase tracking-wider text-[11px] font-mono flex items-center gap-1.5">
+            <Globe className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+            <span>Hubs Conectados</span>
           </h4>
-          <ul className="space-y-2 font-mono text-[11px]">
-            <li>
-              <a
-                href="https://sellercentral.amazon.com"
-                target="_blank"
-                rel="noreferrer"
-                className="text-slate-400 hover:text-blue-400 transition flex items-center space-x-1"
-              >
-                <span>Amazon Seller Central US</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </li>
-            <li>
-              <a
-                href="https://dashboard.prepninjas.com"
-                target="_blank"
-                rel="noreferrer"
-                className="text-slate-400 hover:text-emerald-400 transition flex items-center space-x-1"
-              >
-                <span>Prep Ninjas Logistics</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </li>
-          </ul>
+          <div className="space-y-2 text-[11px]">
+            <a
+              href="https://sellercentral.amazon.com"
+              target="_blank"
+              rel="noreferrer"
+              className="text-slate-400 hover:text-white flex items-center gap-1 transition"
+            >
+              <span>Amazon Seller Central (US)</span>
+              <ExternalLink className="w-3 h-3 text-slate-600" />
+            </a>
+            <a
+              href="https://dashboard.prepninjas.com"
+              target="_blank"
+              rel="noreferrer"
+              className="text-slate-400 hover:text-white flex items-center gap-1 transition"
+            >
+              <span>Prep Ninjas Portal</span>
+              <ExternalLink className="w-3 h-3 text-slate-600" />
+            </a>
+            <a
+              href="https://www.braspress.com"
+              target="_blank"
+              rel="noreferrer"
+              className="text-slate-400 hover:text-white flex items-center gap-1 transition"
+            >
+              <span>Braspress Cargas</span>
+              <ExternalLink className="w-3 h-3 text-slate-600" />
+            </a>
+          </div>
         </div>
       </div>
 
-      {/* Bottom Copyright Bar */}
-      <div className="max-w-7xl mx-auto pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] font-mono text-slate-500">
-        <div>
-          {t.footerRights}
-        </div>
+      <div className="max-w-7xl mx-auto pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-slate-500 text-[11px] font-mono">
+        <div>{t.footerRights}</div>
         <div className="flex items-center space-x-4">
-          <span>Terms of Service</span>
+          <span>Amazon SP-API Connected</span>
           <span>•</span>
-          <span>Privacy Policy</span>
-          <span>•</span>
-          <span>FBA Intelligence Suite v1.0</span>
+          <span>Prep Ninjas Hub</span>
         </div>
       </div>
     </footer>

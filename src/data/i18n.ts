@@ -7,36 +7,149 @@ export interface TranslationDictionary {
   fbaPartner: string;
   searchPlaceholder: string;
   saasModeBtn: string;
+  mobileMenuToggle: string;
 
-  // Sidebar
+  // Sidebar & Navigation
   mainNav: string;
+  operationsNav: string;
+  toolsNav: string;
   navOverview: string;
-  navDealFinder: string;
+  navUSA: string;
+  navBrasil: string;
   navCalculator: string;
   navPrepTracker: string;
   navSuppliers: string;
+  navDealFinder: string;
   navPitch: string;
   connectedTools: string;
   sidebarFooter: string;
   statusOnline: string;
 
-  // Dashboard
+  // Executive Overview (Dashboard)
+  execTitle: string;
+  execSubtitle: string;
   dashTitle: string;
   dashSubtitle: string;
   mineBtn: string;
   potentialProfit: string;
   grossRevenue: string;
-  avgRoi: string;
-  prepStatus: string;
   chartTitle: string;
-  chartSubtitle: string;
-  chartRevenue: string;
   chartCosts: string;
+  chartRevenue: string;
   chartNetProfit: string;
-  opStatusTitle: string;
-  featuredDealsTitle: string;
-  featuredDealsSubtitle: string;
-  viewAll: string;
+  globalSummaryTitle: string;
+  globalSummarySub: string;
+  cardUsaTitle: string;
+  cardUsaDesc: string;
+  cardUsaAction: string;
+  cardBrTitle: string;
+  cardBrDesc: string;
+  cardBrAction: string;
+  kpiTotalSkus: string;
+  kpiTotalUnits: string;
+  kpiUsProfit: string;
+  kpiBrProfit: string;
+  quickToolsTitle: string;
+
+  // USA Page
+  usaPageTitle: string;
+  usaPageSubtitle: string;
+  usaPartnerTitle: string;
+  usaPartnerDesc: string;
+  usaProductCardTitle: string;
+  usaProductCardSub: string;
+  usaAsinLabel: string;
+  usaSkuLabel: string;
+  usaBatchLabel: string;
+  usaDestinationLabel: string;
+  usaUnitCost: string;
+  usaSalePrice: string;
+  usaAmazonFees: string;
+  usaPrepFee: string;
+  usaNetMargin: string;
+  usaLogisticsFlowTitle: string;
+  usaComplianceTitle: string;
+  usaPolybagRule: string;
+  usaOriginStampRule: string;
+
+  // Brasil Page
+  brPageTitle: string;
+  brPageSubtitle: string;
+  brPartnerTitle: string;
+  brPartnerDesc: string;
+  brInvoiceTitle: string;
+  brInvoiceKeyLabel: string;
+  brTotalInvoiceLabel: string;
+  brLogisticsPartner: string;
+  brDeliveryForecast: string;
+  brDeliveryAddress: string;
+  brProductsTableTitle: string;
+  brProductsTableSub: string;
+  brColProduct: string;
+  brColQty: string;
+  brColUnitCost: string;
+  brColEstSale: string;
+  brColNetProfit: string;
+  brColRoi: string;
+
+  // Calculator
+  calcTitle: string;
+  calcSubtitle: string;
+  calcCurrencySwitch: string;
+  calcPresetsTitle: string;
+  calcPresetCableTies: string;
+  calcPresetResveratrol: string;
+  dataSectionTitle: string;
+  sellPriceLabel: string;
+  buyPriceLabel: string;
+  preppingFeeLabel: string;
+  freightLabel: string;
+  weightLabel: string;
+  batchQtyLabel: string;
+  resultUnitTitle: string;
+  badgeProfitable: string;
+  badgeLoss: string;
+  unitNetProfitLabel: string;
+  unitRoiLabel: string;
+  breakdownTitle: string;
+  refFeeLabel: string;
+  fbaFeeLabel: string;
+  prepFeeLabel: string;
+  freightInboundLabel: string;
+  supplierProductCostLabel: string;
+  cleanNetProfitLabel: string;
+  batchProjectionTitle: string;
+  investmentLabel: string;
+  revenueLabel: string;
+  profitLabel: string;
+
+  // Prep Tracker
+  trackerTitle: string;
+  trackerSubtitle: string;
+  prepDashboardBtn: string;
+  braspressBtn: string;
+  tabAllShipments: string;
+  tabUsaFba: string;
+  tabBrasilLogistics: string;
+  unitsInTransit: string;
+  statusOrdered: string;
+  statusInTransit: string;
+  statusAtPrep: string;
+  statusPrepped: string;
+  statusEnRouteFba: string;
+  statusReceivedFba: string;
+  stepDeliveryEst: string;
+
+  // Suppliers
+  supTitle: string;
+  supSubtitle: string;
+  tabAllSuppliers: string;
+  tabUsa: string;
+  tabBrasil: string;
+  tabChina: string;
+  supShipsToPrep: string;
+  supMoq: string;
+  supVisitCatalog: string;
 
   // Deal Finder
   finderTitle: string;
@@ -68,54 +181,6 @@ export interface TranslationDictionary {
   modalSellPrice: string;
   modalCancel: string;
   modalSave: string;
-
-  // Calculator
-  calcTitle: string;
-  calcSubtitle: string;
-  dataSectionTitle: string;
-  sellPriceLabel: string;
-  buyPriceLabel: string;
-  preppingFeeLabel: string;
-  freightLabel: string;
-  weightLabel: string;
-  batchQtyLabel: string;
-  resultUnitTitle: string;
-  badgeProfitable: string;
-  badgeLoss: string;
-  unitNetProfitLabel: string;
-  unitRoiLabel: string;
-  breakdownTitle: string;
-  refFeeLabel: string;
-  fbaFeeLabel: string;
-  prepFeeLabel: string;
-  freightInboundLabel: string;
-  supplierProductCostLabel: string;
-  cleanNetProfitLabel: string;
-  batchProjectionTitle: string;
-  investmentLabel: string;
-  revenueLabel: string;
-  profitLabel: string;
-
-  // Prep Tracker
-  trackerTitle: string;
-  trackerSubtitle: string;
-  prepDashboardBtn: string;
-  warehouseAddr: string;
-  unitsInTransit: string;
-  prepService: string;
-  step1: string;
-  step2: string;
-  step3: string;
-  step4: string;
-  step5: string;
-  step6: string;
-
-  // Suppliers
-  supTitle: string;
-  supSubtitle: string;
-  supShipsToPrep: string;
-  supMoq: string;
-  supVisitCatalog: string;
 
   // SaaS Pitch
   pitchHeroTag: string;
@@ -150,442 +215,637 @@ export interface TranslationDictionary {
 export const i18n: Record<Language, TranslationDictionary> = {
   pt: {
     // Header
-    activeAccount: 'HelpUS LLC',
-    marketLabel: 'Amazon US (sellercentral.amazon.com)',
-    fbaPartner: 'FBA Prep Partner: Prep Ninjas (EUA)',
-    searchPlaceholder: 'Buscar ASIN, Produto, Fornecedor...',
-    saasModeBtn: 'Modo Comercial SaaS',
+    activeAccount: 'HelpUS Global',
+    marketLabel: 'Ecossistema Integrado EUA & Brasil',
+    fbaPartner: 'Prep Center EUA: Prep Ninjas (UT)',
+    searchPlaceholder: 'Buscar ASIN, SKU, NF-e, Produto...',
+    saasModeBtn: 'Modo SaaS',
+    mobileMenuToggle: 'Menu Principal',
 
-    // Sidebar
+    // Sidebar & Navigation
     mainNav: 'Navegação Principal',
-    navOverview: 'Visão Geral',
-    navDealFinder: 'Deal Finder (Minerador)',
+    operationsNav: 'Operações Ativas',
+    toolsNav: 'Ferramentas de Gestão',
+    navOverview: 'Visão Executiva',
+    navUSA: '🇺🇸 Operação EUA (FBA)',
+    navBrasil: '🇧🇷 Operação Brasil (NF-e)',
     navCalculator: 'Calculadora FBA & Prep',
-    navPrepTracker: 'Rastreio Prep Ninjas',
-    navSuppliers: 'Fornecedores EUA',
-    navPitch: 'Apresentação SaaS',
-    connectedTools: 'Ferramentas Conectadas',
-    sidebarFooter: 'Plataforma configurada para os ecossistemas da Amazon US e Prep Ninjas',
-    statusOnline: 'Online',
+    navPrepTracker: 'Rastreio & Logística',
+    navSuppliers: 'Fornecedores Homologados',
+    navDealFinder: 'Prospecção de Produtos',
+    navPitch: 'Apresentação Comercial',
+    connectedTools: 'Conexões Ativas',
+    sidebarFooter: 'Plataforma HelpUS Multi-Armazém • EUA & Brasil',
+    statusOnline: 'Operacional',
 
-    // Dashboard
-    dashTitle: 'Painel Executivo de Inteligência FBA',
-    dashSubtitle: 'Acompanhe o potencial de faturamento, margens de lucro líquido, mineração de fornecedores dos EUA e status logístico no Prep Ninjas.',
+    // Executive Overview (Dashboard)
+    execTitle: 'Painel Executivo HelpUS',
+    execSubtitle: 'Visão clara, consolidada e descomplicada das duas operações comerciais ativas da HelpUS.',
+    dashTitle: 'Painel Executivo HelpUS',
+    dashSubtitle: 'Visão clara, consolidada e descomplicada das duas operações comerciais ativas da HelpUS.',
     mineBtn: 'Minerar Novos Produtos',
-    potentialProfit: 'Lucro Potencial (Lotes Teste)',
-    grossRevenue: 'Faturamento Bruto Projetado',
-    avgRoi: 'ROI Médio dos Produtos',
-    prepStatus: 'Status no Prep Ninjas',
-    chartTitle: 'Projeção Financeira de Lotes (Em Dólar)',
-    chartSubtitle: 'Comparativo de Faturamento, Custos Totais e Lucro Líquido por Produto',
+    potentialProfit: 'Lucro Líquido Real',
+    grossRevenue: 'Faturamento Projetado',
+    chartTitle: 'Projeção de Lotes (Moeda Local)',
+    chartCosts: 'Custos Totais',
     chartRevenue: 'Faturamento',
-    chartCosts: 'Custos Logísticos + Produto',
     chartNetProfit: 'Lucro Líquido',
-    opStatusTitle: 'Status Operacional HelpUS',
-    featuredDealsTitle: 'Produtos Candidatos em Destaque (Ungated)',
-    featuredDealsSubtitle: 'Produtos sem restrição de marca prontos para o primeiro lote de teste',
-    viewAll: 'Ver Todos',
+    globalSummaryTitle: 'Resumo Geral das Operações',
+    globalSummarySub: 'Acesse cada operação de forma independente para ver métricas detalhadas.',
+    cardUsaTitle: 'Operação Estados Unidos (HelpUS LLC)',
+    cardUsaDesc: 'Vendas via Amazon US FBA com recebimento e preparação no Prep Ninjas (Salt Lake City, UT). Lote piloto com tiras de silicone reutilizáveis.',
+    cardUsaAction: 'Entrar na Operação EUA &rarr;',
+    cardBrTitle: 'Operação Brasil (HelpUS Brasil)',
+    cardBrDesc: 'Distribuição nacional em parceria com a Nativos do Brasil. Pedido Piloto #3404 faturado com NF-e 00002509 e rastreio rodoviário Braspress até João Pessoa/PB.',
+    cardBrAction: 'Entrar na Operação Brasil &rarr;',
+    kpiTotalSkus: 'SKUs Ativos',
+    kpiTotalUnits: 'Unidades em Trânsito',
+    kpiUsProfit: 'Lucro Previsto EUA',
+    kpiBrProfit: 'Lucro Previsto Brasil',
+    quickToolsTitle: 'Acesso Rápido a Ferramentas',
 
-    // Deal Finder
-    finderTitle: 'Deal Finder (Central de Mineração de Produtos)',
-    finderSubtitle: 'Filtre fornecedores dos EUA, verifique a margem líquida descontando FBA + Prep Ninjas e veja a liberação (Ungated).',
-    exportCsv: 'Exportar CSV',
-    addCandidate: 'Adicionar Produto Candidato',
-    searchLabel: 'Buscar',
-    searchPlaceholderInput: 'Buscar por ASIN, Nome ou Fornecedor...',
-    categoryLabel: 'Categoria',
-    minRoiLabel: 'ROI Mínimo:',
-    colProduct: 'Produto & ASIN',
-    colSupplier: 'Fornecedor EUA',
-    colPricing: 'Custo / Venda',
-    colFees: 'FBA + Prep Fees',
-    colProfitRoi: 'Lucro Líq. / ROI',
-    colUngated: 'Liberação (Ungated)',
-    colAction: 'Ação',
-    ungatedApproved: 'UNGATED (Liberado)',
-    ungatedRequires: 'Requer Aprovação',
-    btnSimulateFees: 'Simular Taxas',
+    // USA Page
+    usaPageTitle: 'Operação Estados Unidos (HelpUS LLC)',
+    usaPageSubtitle: 'Controle dedicado da conta Amazon US FBA, taxas em Dólar (USD) e logística no Prep Ninjas.',
+    usaPartnerTitle: 'Centro de Preparação Homologado',
+    usaPartnerDesc: 'Prep Ninjas LLC (869 E 4500 S, Salt Lake City, UT 84107). Inspeção, colocação de etiquetas FNSKU ($1.50/un) e envio para centros FBA da Amazon via UPS Ground.',
+    usaProductCardTitle: 'Produto Piloto Ativo',
+    usaProductCardSub: 'Item catalogado e aprovado com Isenção de GTIN oficial na Amazon.com.',
+    usaAsinLabel: 'Código ASIN:',
+    usaSkuLabel: 'Código SKU:',
+    usaBatchLabel: 'Lote Atual:',
+    usaDestinationLabel: 'Destino Amazon:',
+    usaUnitCost: 'Custo de Aquisição:',
+    usaSalePrice: 'Preço de Venda:',
+    usaAmazonFees: 'Tarifas Amazon FBA:',
+    usaPrepFee: 'Taxa Prep Center:',
+    usaNetMargin: 'Lucro Líquido / Margem:',
+    usaLogisticsFlowTitle: 'Fluxo Logístico EUA',
+    usaComplianceTitle: 'Normas de Conformidade e Embalagem',
+    usaPolybagRule: 'Polybag individual com aviso de sufocação impresso em inglês obrigatório.',
+    usaOriginStampRule: 'Marcação visível "Made in China" impressa na caixa master externa.',
 
-    // Add Modal
-    modalTitle: 'Adicionar Produto Candidato',
-    modalProductTitle: 'Título do Produto',
-    modalAsin: 'Código ASIN',
-    modalCategory: 'Categoria',
-    modalSupplier: 'Nome do Fornecedor EUA',
-    modalBuyPrice: 'Preço de Compra ($)',
-    modalSellPrice: 'Preço Venda Amazon ($)',
-    modalCancel: 'Cancelar',
-    modalSave: 'Salvar Produto no Deal Finder',
+    // Brasil Page
+    brPageTitle: 'Operação Brasil (HelpUS Brasil / MEI)',
+    brPageSubtitle: 'Gestão de compras, estoque nacional e vendas locais em Reais (BRL) via Nativos do Brasil.',
+    brPartnerTitle: 'Fornecedor Principal Homologado',
+    brPartnerDesc: 'Nativos do Brasil Produtos Naturais Ltda (CNPJ: 47.693.854/0001-64, Vila Velha/ES). Fabricante direto de nutracêuticos e fitoterápicos em cápsulas.',
+    brInvoiceTitle: 'Nota Fiscal de Entrada (NF-e Nº 00002509)',
+    brInvoiceKeyLabel: 'Chave de Acesso SEFAZ:',
+    brTotalInvoiceLabel: 'Valor Total com Frete:',
+    brLogisticsPartner: 'Transportadora Oficial:',
+    brDeliveryForecast: 'Previsão de Entrega:',
+    brDeliveryAddress: 'Endereço de Entrega:',
+    brProductsTableTitle: '6 SKUs Campeões Adquiridos no Pedido Piloto #3404',
+    brProductsTableSub: 'Produtos inspecionados para venda em canais próprios e marketplaces nacionais.',
+    brColProduct: 'Produto / Suplemento',
+    brColQty: 'Qtd.',
+    brColUnitCost: 'Custo Unit.',
+    brColEstSale: 'Venda Est.',
+    brColNetProfit: 'Lucro Unit.',
+    brColRoi: 'ROI Est.',
 
     // Calculator
-    calcTitle: 'Calculadora de Margem FBA & Prep Ninjas',
-    calcSubtitle: 'Simulação matemática exata em tempo real descontando todas as taxas da Amazon EUA e custos de manuseio no Prep Ninjas.',
-    dataSectionTitle: 'Dados de Compra e Venda',
-    sellPriceLabel: 'Preço de Venda na Amazon ($)',
-    buyPriceLabel: 'Preço no Fornecedor ($)',
-    preppingFeeLabel: 'Taxa Prep Ninjas ($/un)',
-    freightLabel: 'Frete Interno / Inbound ($/un)',
-    weightLabel: 'Peso do Produto (lbs)',
-    batchQtyLabel: 'Lote de Teste (Quantidade)',
-    resultUnitTitle: 'Resultado por Unidade Vendida',
+    calcTitle: 'Calculadora de Unit Economics & FBA',
+    calcSubtitle: 'Simule com precisão o retorno financeiro de qualquer produto antes de efetuar compras.',
+    calcCurrencySwitch: 'Moeda da Simulação:',
+    calcPresetsTitle: 'Carregar Predefinições Rápidas:',
+    calcPresetCableTies: 'Silicone Cable Ties (EUA - USD)',
+    calcPresetResveratrol: 'Resveratrol Softgel (BR - BRL)',
+    dataSectionTitle: 'Dados de Compra e Custos',
+    sellPriceLabel: 'Preço de Venda Estimado',
+    buyPriceLabel: 'Custo de Aquisição no Fornecedor',
+    preppingFeeLabel: 'Taxa de Prep / Etiquetagem',
+    freightLabel: 'Frete Unitário / Rateado',
+    weightLabel: 'Peso Unitário Estimado',
+    batchQtyLabel: 'Quantidade do Lote',
+    resultUnitTitle: 'Resultado por Unidade',
     badgeProfitable: 'PRODUTO LUCRATIVO',
     badgeLoss: 'PREJUÍZO',
     unitNetProfitLabel: 'Lucro Líquido Unitário',
-    unitRoiLabel: 'ROI Líquido',
-    breakdownTitle: 'Detalhamento de Taxas & Custos (1 Unidade)',
-    refFeeLabel: '(-) Comissão Amazon (Referral 15%):',
-    fbaFeeLabel: '(-) Taxa Logística FBA (Fulfillment):',
-    prepFeeLabel: '(-) Taxa Prep Ninjas (3PL):',
-    freightInboundLabel: '(-) Frete Interno (Estimado):',
+    unitRoiLabel: 'ROI Estimado',
+    breakdownTitle: 'Detalhamento de Custos e Deduções',
+    refFeeLabel: '(-) Taxa de Comissão / Marketplace (~15%):',
+    fbaFeeLabel: '(-) Tarifa Logística / Fulfillment:',
+    prepFeeLabel: '(-) Taxa de Manuseio / Prep Center:',
+    freightInboundLabel: '(-) Frete de Entrada (Inbound):',
     supplierProductCostLabel: '(-) Custo do Produto no Fornecedor:',
-    cleanNetProfitLabel: '(=) Lucro Limpo no Banco:',
-    batchProjectionTitle: 'Projeção para Lote de {qty} Unidades:',
+    cleanNetProfitLabel: '(=) Lucro Líquido Real no Caixa:',
+    batchProjectionTitle: 'Projeção Total do Lote ({qty} un):',
     investmentLabel: 'Investimento:',
     revenueLabel: 'Faturamento:',
     profitLabel: 'Lucro Líquido:',
 
     // Prep Tracker
-    trackerTitle: 'Rastreamento Logístico Prep Ninjas (3PL)',
-    trackerSubtitle: 'Acompanhamento em tempo real do fluxo do fornecedor até o galpão da Amazon FBA nos EUA.',
-    prepDashboardBtn: 'Acessar Painel Prep Ninjas',
-    warehouseAddr: 'Gulf Shores / US Warehouse',
-    unitsInTransit: '200 Unidades (3 Lotes)',
-    prepService: 'Inspeção + FNSKU Label',
-    step1: 'Pedido Fornecedor',
-    step2: 'Em Trânsito Prep',
-    step3: 'No Prep Ninjas',
-    step4: 'Etiquetado FNSKU',
-    step5: 'Enviado p/ FBA',
-    step6: 'Recebido Amazon',
+    trackerTitle: 'Rastreio Logístico Multi-Armazém',
+    trackerSubtitle: 'Acompanhe as remessas em trânsito com separação clara entre os centros dos EUA e Brasil.',
+    prepDashboardBtn: 'Portal Prep Ninjas',
+    braspressBtn: 'Rastreio Braspress',
+    tabAllShipments: 'Todas as Remessas',
+    tabUsaFba: '🇺🇸 Lotes EUA (Prep Ninjas / Amazon)',
+    tabBrasilLogistics: '🇧🇷 Lotes Brasil (Braspress / JPA)',
+    unitsInTransit: 'unidades em transporte',
+    statusOrdered: 'Pedido Criado',
+    statusInTransit: 'Em Transporte',
+    statusAtPrep: 'No Armazém / Coleta',
+    statusPrepped: 'Etiquetado & Pronto',
+    statusEnRouteFba: 'Em Rota Final',
+    statusReceivedFba: 'Recebido / Disponível',
+    stepDeliveryEst: 'Previsão de Entrega:',
 
     // Suppliers
-    supTitle: 'Fornecedores Verificados dos EUA (Wholesale / B2B)',
-    supSubtitle: 'Catálogo de distribuidores e atacadistas que vendem com invoice legal para LLCs e entregam no Prep Ninjas.',
-    supShipsToPrep: 'Envio Prep Ninjas',
-    supMoq: 'MOQ Mínimo:',
-    supVisitCatalog: 'Visitar Catálogo',
+    supTitle: 'Fornecedores, Fabricantes & 3PL',
+    supSubtitle: 'Catálogo homologado de parceiros comerciais categorizados por país de atuação.',
+    tabAllSuppliers: 'Todos os Parceiros',
+    tabUsa: '🇺🇸 Estados Unidos',
+    tabBrasil: '🇧🇷 Brasil',
+    tabChina: '🇨🇳 China',
+    supShipsToPrep: 'Envia Direto para o Prep Center',
+    supMoq: 'Pedido Mínimo:',
+    supVisitCatalog: 'Acessar Catálogo',
+
+    // Deal Finder
+    finderTitle: 'Prospecção de Oportunidades (Deal Finder)',
+    finderSubtitle: 'Filtre produtos viáveis, analise a margem descontando tarifas e verifique aprovação de marca.',
+    exportCsv: 'Exportar CSV',
+    addCandidate: 'Adicionar Candidato',
+    searchLabel: 'Buscar',
+    searchPlaceholderInput: 'Buscar por ASIN, SKU, Produto ou Fornecedor...',
+    categoryLabel: 'Categoria',
+    minRoiLabel: 'ROI Mínimo:',
+    colProduct: 'Produto & Identificador',
+    colSupplier: 'Fornecedor',
+    colPricing: 'Custo / Venda',
+    colFees: 'Taxas & Logística',
+    colProfitRoi: 'Lucro Líq. / ROI',
+    colUngated: 'Status da Marca',
+    colAction: 'Simulação',
+    ungatedApproved: 'LIBERADO (Ungated)',
+    ungatedRequires: 'Requer Autorização',
+    btnSimulateFees: 'Simular na Calculadora',
+
+    // Add Modal
+    modalTitle: 'Cadastrar Novo Produto para Análise',
+    modalProductTitle: 'Título do Produto',
+    modalAsin: 'Código ASIN ou SKU',
+    modalCategory: 'Categoria',
+    modalSupplier: 'Nome do Fornecedor',
+    modalBuyPrice: 'Preço de Compra',
+    modalSellPrice: 'Preço de Venda Estimado',
+    modalCancel: 'Cancelar',
+    modalSave: 'Salvar no Radar',
 
     // SaaS Pitch
-    pitchHeroTag: 'HelpUS FBA Suite • Plataforma Enterprise SaaS',
-    pitchHeroTitle1: 'Automate Product Sourcing & Logistics for',
-    pitchHeroTitle2: 'Amazon Sellers & US LLCs',
-    pitchHeroSub: 'The ultimate all-in-one software engine connecting US Wholesale Suppliers, 3PL Prep Centers (Prep Ninjas), and Amazon Seller Central.',
-    pitchFeature1Title: 'Automated Deal Mining',
-    pitchFeature1Desc: 'Scans wholesale price sheets and liquidators to extract high-ROI products with zero brand ungating barriers.',
-    pitchFeature2Title: '3PL Prep Center Sync',
-    pitchFeature2Desc: 'Direct tracking integration with Prep Ninjas and US warehouses for automated FNSKU labeling and bundling.',
-    pitchFeature3Title: 'Real-Time Margin Engine',
-    pitchFeature3Desc: 'Exact net profit calculations accounting for Amazon Referral, FBA Fulfillment, Prep Fees, and Inbound Freight.',
-    pitchPricingTitle: 'Planos Comerciais (SaaS Ready)',
-    pitchPricingSub: 'Pronto para ser comercializado para marcas e vendedores da Amazon nos EUA',
-    planStarter: 'Starter Plan',
+    pitchHeroTag: 'Módulo Comercial B2B',
+    pitchHeroTitle1: 'A Plataforma Completa de Gestão para',
+    pitchHeroTitle2: 'Operações Amazon FBA & Cross-Border',
+    pitchHeroSub: 'Automatize compras, controle unit economics e sincronize estoques internacionais e nacionais em uma única interface inteligente.',
+    pitchFeature1Title: 'Unit Economics Exato',
+    pitchFeature1Desc: 'Descontos automáticos de referral fees, taxas de fulfillment da Amazon e custo de etiquetagem 3PL.',
+    pitchFeature2Title: 'Logística Multi-Hub',
+    pitchFeature2Desc: 'Monitore remessas internacionais na Prep Ninjas e entregas nacionais com rastreamento integrado.',
+    pitchFeature3Title: 'Multi-Moeda Nativo',
+    pitchFeature3Desc: 'Gerencie operações em USD ($) e BRL (R$) com relatórios claros e sem misturar balanços.',
+    pitchPricingTitle: 'Planos de Acesso ao Sistema',
+    pitchPricingSub: 'Desenvolvido sob medida para operações em escala na Amazon',
+    planStarter: 'Starter',
     planPro: 'Pro Suite',
     planEnterprise: 'Enterprise',
-    btnStartTrial: 'Começar Teste',
-    btnSubscribePro: 'Assinar Pro Suite',
-    btnContactSales: 'Falar com Vendas',
+    btnStartTrial: 'Iniciar Demonstração',
+    btnSubscribePro: 'Contratar Versão Pro',
+    btnContactSales: 'Falar com Consultores',
 
     // Footer
-    footerDesc: 'Plataforma oficial de automação de e-commerce, mineração de produtos e inteligência de vendas para Amazon FBA.',
-    footerAddressTitle: 'Endereço Comercial Registrado',
+    footerDesc: 'Plataforma oficial de automação de e-commerce, inteligência FBA e gestão cross-border HelpUS.',
+    footerAddressTitle: 'Endereço Comercial Oficial',
     footerAddress: '241 E 16st STE B4, Gulf Shores, AL 36542, Estados Unidos',
-    footerContactTitle: 'Contato Oficial HelpUS LLC',
+    footerContactTitle: 'Atendimento & Operações',
     footerPhone: '+1 (334) 219-3221 / +55 (83) 99872-1848',
     footerEmail: 'contact@helpusllc.com',
-    footerRights: '© 2026 HelpUS LLC. Todos os direitos reservados.',
+    footerRights: '© 2026 HelpUS Global. Todos os direitos reservados.',
   },
 
   en: {
     // Header
-    activeAccount: 'HelpUS LLC',
-    marketLabel: 'Amazon US (sellercentral.amazon.com)',
-    fbaPartner: 'FBA Prep Partner: Prep Ninjas (USA)',
-    searchPlaceholder: 'Search ASIN, Product, Supplier...',
-    saasModeBtn: 'SaaS Commercial Mode',
+    activeAccount: 'HelpUS Global',
+    marketLabel: 'Integrated US & Brazil Ecosystem',
+    fbaPartner: 'US Prep Center: Prep Ninjas (UT)',
+    searchPlaceholder: 'Search ASIN, SKU, Invoice, Product...',
+    saasModeBtn: 'SaaS Mode',
+    mobileMenuToggle: 'Main Menu',
 
-    // Sidebar
+    // Sidebar & Navigation
     mainNav: 'Main Navigation',
-    navOverview: 'Overview',
-    navDealFinder: 'Deal Finder (Mining)',
+    operationsNav: 'Active Operations',
+    toolsNav: 'Management Tools',
+    navOverview: 'Executive Overview',
+    navUSA: '🇺🇸 US Operation (FBA)',
+    navBrasil: '🇧🇷 Brazil Operation (NF-e)',
     navCalculator: 'FBA & Prep Calculator',
-    navPrepTracker: 'Prep Ninjas Tracker',
-    navSuppliers: 'US Suppliers',
-    navPitch: 'SaaS Presentation',
-    connectedTools: 'Connected Tools',
-    sidebarFooter: 'Platform configured for Amazon US & Prep Ninjas ecosystems',
-    statusOnline: 'Online',
+    navPrepTracker: 'Logistics & Tracking',
+    navSuppliers: 'Verified Suppliers',
+    navDealFinder: 'Product Deal Finder',
+    navPitch: 'Commercial Overview',
+    connectedTools: 'Active Integrations',
+    sidebarFooter: 'HelpUS Multi-Warehouse Platform • US & Brazil',
+    statusOnline: 'Operational',
 
-    // Dashboard
-    dashTitle: 'FBA Executive Intelligence Dashboard',
-    dashSubtitle: 'Track revenue potential, net profit margins, US supplier sourcing, and Prep Ninjas logistics status.',
-    mineBtn: 'Mine New Products',
-    potentialProfit: 'Potential Profit (Test Batches)',
+    // Executive Overview (Dashboard)
+    execTitle: 'HelpUS Executive Dashboard',
+    execSubtitle: 'Clear, consolidated, and straightforward overview of both active commercial operations of HelpUS.',
+    dashTitle: 'HelpUS Executive Dashboard',
+    dashSubtitle: 'Clear, consolidated, and straightforward overview of both active commercial operations of HelpUS.',
+    mineBtn: 'Mine New Deals',
+    potentialProfit: 'Net Profit Potential',
     grossRevenue: 'Projected Gross Revenue',
-    avgRoi: 'Average Product ROI',
-    prepStatus: 'Prep Ninjas Status',
-    chartTitle: 'Batch Financial Projection (in USD)',
-    chartSubtitle: 'Revenue, Total Costs, and Net Profit comparison per product',
-    chartRevenue: 'Revenue',
-    chartCosts: 'Logistics + Product Costs',
+    chartTitle: 'Batch Projections (Local Currency)',
+    chartCosts: 'Total Costs',
+    chartRevenue: 'Gross Revenue',
     chartNetProfit: 'Net Profit',
-    opStatusTitle: 'HelpUS Operational Status',
-    featuredDealsTitle: 'Featured Candidate Products (Ungated)',
-    featuredDealsSubtitle: 'Brand-unrestricted products ready for initial test batch',
-    viewAll: 'View All',
+    globalSummaryTitle: 'Overall Operations Summary',
+    globalSummarySub: 'Access each operation independently to review dedicated metrics without clutter.',
+    cardUsaTitle: 'United States Operation (HelpUS LLC)',
+    cardUsaDesc: 'Amazon US FBA sales powered by Prep Ninjas warehouse inspection and labeling (Salt Lake City, UT). Active pilot with reusable silicone cable ties.',
+    cardUsaAction: 'Enter US Operation &rarr;',
+    cardBrTitle: 'Brazil Operation (HelpUS Brasil)',
+    cardBrDesc: 'Domestic distribution partnering with Nativos do Brasil. Pilot Order #3404 billed under NF-e 00002509, shipped via Braspress to João Pessoa/PB.',
+    cardBrAction: 'Enter Brazil Operation &rarr;',
+    kpiTotalSkus: 'Active SKUs',
+    kpiTotalUnits: 'Units in Transit',
+    kpiUsProfit: 'Expected US Profit',
+    kpiBrProfit: 'Expected Brazil Profit',
+    quickToolsTitle: 'Quick Tool Access',
 
-    // Deal Finder
-    finderTitle: 'Deal Finder (Product Sourcing Hub)',
-    finderSubtitle: 'Filter US suppliers, check net margin deducting FBA + Prep Ninjas, and verify Ungated approval status.',
-    exportCsv: 'Export CSV',
-    addCandidate: 'Add Candidate Product',
-    searchLabel: 'Search',
-    searchPlaceholderInput: 'Search by ASIN, Name or Supplier...',
-    categoryLabel: 'Category',
-    minRoiLabel: 'Minimum ROI:',
-    colProduct: 'Product & ASIN',
-    colSupplier: 'US Supplier',
-    colPricing: 'Buy / Sell Price',
-    colFees: 'FBA + Prep Fees',
-    colProfitRoi: 'Net Profit / ROI',
-    colUngated: 'Approval (Ungated)',
-    colAction: 'Action',
-    ungatedApproved: 'UNGATED (Approved)',
-    ungatedRequires: 'Requires Ungating',
-    btnSimulateFees: 'Simulate Fees',
+    // USA Page
+    usaPageTitle: 'United States Operation (HelpUS LLC)',
+    usaPageSubtitle: 'Dedicated monitoring of Amazon US FBA account, fees in US Dollars (USD), and Prep Ninjas logistics.',
+    usaPartnerTitle: 'Verified 3PL Preparation Center',
+    usaPartnerDesc: 'Prep Ninjas LLC (869 E 4500 S, Salt Lake City, UT 84107). Receives batches, inspects, applies FNSKU barcodes ($1.50/unit), and dispatches via UPS Ground to Amazon fulfillment centers.',
+    usaProductCardTitle: 'Active Pilot Product',
+    usaProductCardSub: 'Item listed and approved under official GTIN Exemption on Amazon.com.',
+    usaAsinLabel: 'ASIN Code:',
+    usaSkuLabel: 'SKU Code:',
+    usaBatchLabel: 'Current Batch:',
+    usaDestinationLabel: 'Amazon Destination:',
+    usaUnitCost: 'Unit Acquisition Cost:',
+    usaSalePrice: 'Listing Sale Price:',
+    usaAmazonFees: 'Amazon FBA & Referral Fees:',
+    usaPrepFee: 'Prep Center Fee:',
+    usaNetMargin: 'Net Profit / Margin:',
+    usaLogisticsFlowTitle: 'US Logistics Workflow',
+    usaComplianceTitle: 'Compliance & Packaging Standards',
+    usaPolybagRule: 'Individual polybag with clear English suffocation warning required on each unit.',
+    usaOriginStampRule: 'Visible "Made in China" origin mark clearly printed on master carton.',
 
-    // Add Modal
-    modalTitle: 'Add Candidate Product',
-    modalProductTitle: 'Product Title',
-    modalAsin: 'ASIN Code',
-    modalCategory: 'Category',
-    modalSupplier: 'US Supplier Name',
-    modalBuyPrice: 'Buy Price ($)',
-    modalSellPrice: 'Amazon Sell Price ($)',
-    modalCancel: 'Cancel',
-    modalSave: 'Save Product in Deal Finder',
+    // Brasil Page
+    brPageTitle: 'Brazil Operation (HelpUS Brasil / MEI)',
+    brPageSubtitle: 'Procurement, domestic inventory, and local sales managed in Brazilian Reais (BRL) via Nativos do Brasil.',
+    brPartnerTitle: 'Primary Verified Supplier',
+    brPartnerDesc: 'Nativos do Brasil Produtos Naturais Ltda (CNPJ: 47.693.854/0001-64, Vila Velha/ES). Direct manufacturer of premium dietary supplements in 60-capsule bottles.',
+    brInvoiceTitle: 'Inbound Tax Invoice (NF-e Nº 00002509)',
+    brInvoiceKeyLabel: 'SEFAZ Access Key:',
+    brTotalInvoiceLabel: 'Total Invoice with Shipping:',
+    brLogisticsPartner: 'Freight Carrier:',
+    brDeliveryForecast: 'Estimated Delivery:',
+    brDeliveryAddress: 'Delivery Address:',
+    brProductsTableTitle: '6 Best-Selling SKUs Purchased in Pilot Order #3404',
+    brProductsTableSub: 'Inspected items prepared for domestic marketplace fulfillment.',
+    brColProduct: 'Product / Supplement',
+    brColQty: 'Qty',
+    brColUnitCost: 'Unit Cost',
+    brColEstSale: 'Est. Sale',
+    brColNetProfit: 'Unit Profit',
+    brColRoi: 'Est. ROI',
 
     // Calculator
-    calcTitle: 'FBA & Prep Ninjas Margin Calculator',
-    calcSubtitle: 'Exact real-time mathematical simulation deducting all Amazon US fees and Prep Ninjas handling costs.',
-    dataSectionTitle: 'Buy & Sell Financial Inputs',
-    sellPriceLabel: 'Amazon Selling Price ($)',
-    buyPriceLabel: 'Supplier Buy Price ($)',
-    preppingFeeLabel: 'Prep Ninjas Fee ($/unit)',
-    freightLabel: 'Inbound Freight ($/unit)',
-    weightLabel: 'Product Weight (lbs)',
-    batchQtyLabel: 'Test Batch (Quantity)',
-    resultUnitTitle: 'Result Per Sold Unit',
-    badgeProfitable: 'PROFITABLE PRODUCT',
+    calcTitle: 'FBA & Unit Economics Calculator',
+    calcSubtitle: 'Accurately simulate the net return of any product before committing purchase capital.',
+    calcCurrencySwitch: 'Simulation Currency:',
+    calcPresetsTitle: 'Load Quick Presets:',
+    calcPresetCableTies: 'Silicone Cable Ties (US - USD)',
+    calcPresetResveratrol: 'Resveratrol Softgel (BR - BRL)',
+    dataSectionTitle: 'Procurement & Cost Inputs',
+    sellPriceLabel: 'Estimated Amazon Sale Price',
+    buyPriceLabel: 'Supplier Purchase Cost',
+    preppingFeeLabel: 'Prep & Labeling Fee',
+    freightLabel: 'Unit Inbound Freight',
+    weightLabel: 'Item Weight',
+    batchQtyLabel: 'Batch Test Quantity',
+    resultUnitTitle: 'Unit Economics Result',
+    badgeProfitable: 'PROFITABLE DEAL',
     badgeLoss: 'NET LOSS',
-    unitNetProfitLabel: 'Unit Net Profit',
-    unitRoiLabel: 'Net ROI',
-    breakdownTitle: 'Fee & Cost Breakdown (1 Unit)',
-    refFeeLabel: '(-) Amazon Referral Fee (15%):',
+    unitNetProfitLabel: 'Net Profit per Unit',
+    unitRoiLabel: 'Estimated ROI',
+    breakdownTitle: 'Cost & Fee Deductions Breakdown',
+    refFeeLabel: '(-) Referral / Marketplace Fee (~15%):',
     fbaFeeLabel: '(-) FBA Fulfillment Fee:',
-    prepFeeLabel: '(-) Prep Ninjas Fee (3PL):',
-    freightInboundLabel: '(-) Inbound Freight (Est.):',
+    prepFeeLabel: '(-) 3PL Prep Fee:',
+    freightInboundLabel: '(-) Inbound Freight (Estimated):',
     supplierProductCostLabel: '(-) Supplier Product Cost:',
     cleanNetProfitLabel: '(=) Net Profit in Bank:',
-    batchProjectionTitle: 'Projection for {qty} Units Batch:',
+    batchProjectionTitle: 'Full Batch Projection ({qty} units):',
     investmentLabel: 'Investment:',
     revenueLabel: 'Revenue:',
     profitLabel: 'Net Profit:',
 
     // Prep Tracker
-    trackerTitle: 'Prep Ninjas Logistics Tracker (3PL)',
-    trackerSubtitle: 'Real-time tracking of shipment flow from supplier to Amazon FBA warehouse in the US.',
-    prepDashboardBtn: 'Access Prep Ninjas Dashboard',
-    warehouseAddr: 'Gulf Shores / US Warehouse',
-    unitsInTransit: '200 Units (3 Batches)',
-    prepService: 'Inspection + FNSKU Labeling',
-    step1: 'Supplier Order',
-    step2: 'In Transit to Prep',
-    step3: 'At Prep Ninjas',
-    step4: 'FNSKU Labeled',
-    step5: 'En Route to FBA',
-    step6: 'Received by Amazon',
+    trackerTitle: 'Multi-Warehouse Logistics Tracker',
+    trackerSubtitle: 'Track inbound shipments with clean visual separation between US and Brazil hubs.',
+    prepDashboardBtn: 'Prep Ninjas Portal',
+    braspressBtn: 'Braspress Tracking',
+    tabAllShipments: 'All Shipments',
+    tabUsaFba: '🇺🇸 US Shipments (Prep Ninjas / Amazon)',
+    tabBrasilLogistics: '🇧🇷 Brazil Shipments (Braspress / JPA)',
+    unitsInTransit: 'units in transit',
+    statusOrdered: 'Order Placed',
+    statusInTransit: 'In Transit',
+    statusAtPrep: 'At Warehouse / Picked Up',
+    statusPrepped: 'Prepped & Labeled',
+    statusEnRouteFba: 'En Route to Amazon',
+    statusReceivedFba: 'Received / Available',
+    stepDeliveryEst: 'Estimated Delivery:',
 
     // Suppliers
-    supTitle: 'Verified US Wholesale Suppliers (B2B)',
-    supSubtitle: 'Catalog of wholesalers selling with legal invoices for LLCs and shipping to Prep Ninjas.',
-    supShipsToPrep: 'Ships to Prep Ninjas',
-    supMoq: 'Minimum MOQ:',
-    supVisitCatalog: 'Visit Catalog',
+    supTitle: 'Verified Suppliers, Manufacturers & 3PL',
+    supSubtitle: 'Approved partner directory cleanly organized by operational country.',
+    tabAllSuppliers: 'All Partners',
+    tabUsa: '🇺🇸 United States',
+    tabBrasil: '🇧🇷 Brazil',
+    tabChina: '🇨🇳 China',
+    supShipsToPrep: 'Ships Directly to Prep Center',
+    supMoq: 'Minimum Order (MOQ):',
+    supVisitCatalog: 'Open Portal / Catalog',
+
+    // Deal Finder
+    finderTitle: 'Product Deal Finder & Mining',
+    finderSubtitle: 'Screen wholesale suppliers, compute net margin after FBA + Prep deductions, and verify ungating.',
+    exportCsv: 'Export CSV',
+    addCandidate: 'Add Candidate',
+    searchLabel: 'Search',
+    searchPlaceholderInput: 'Search by ASIN, SKU, Product, or Supplier...',
+    categoryLabel: 'Category',
+    minRoiLabel: 'Minimum ROI:',
+    colProduct: 'Product & Identifier',
+    colSupplier: 'Supplier',
+    colPricing: 'Cost / Price',
+    colFees: 'Fees & Logistics',
+    colProfitRoi: 'Net Profit / ROI',
+    colUngated: 'Brand Ungating',
+    colAction: 'Simulate',
+    ungatedApproved: 'UNGATED (Approved)',
+    ungatedRequires: 'Requires Approval',
+    btnSimulateFees: 'Simulate in Calculator',
+
+    // Add Modal
+    modalTitle: 'Add New Candidate Product',
+    modalProductTitle: 'Product Title',
+    modalAsin: 'ASIN or SKU Code',
+    modalCategory: 'Category',
+    modalSupplier: 'Supplier Name',
+    modalBuyPrice: 'Purchase Price',
+    modalSellPrice: 'Estimated Sale Price',
+    modalCancel: 'Cancel',
+    modalSave: 'Save to Radar',
 
     // SaaS Pitch
-    pitchHeroTag: 'HelpUS FBA Suite • Enterprise SaaS Platform',
-    pitchHeroTitle1: 'Automate Product Sourcing & Logistics for',
-    pitchHeroTitle2: 'Amazon Sellers & US LLCs',
-    pitchHeroSub: 'The ultimate all-in-one software engine connecting US Wholesale Suppliers, 3PL Prep Centers (Prep Ninjas), and Amazon Seller Central.',
-    pitchFeature1Title: 'Automated Deal Mining',
-    pitchFeature1Desc: 'Scans wholesale price sheets and liquidators to extract high-ROI products with zero brand ungating barriers.',
-    pitchFeature2Title: '3PL Prep Center Sync',
-    pitchFeature2Desc: 'Direct tracking integration with Prep Ninjas and US warehouses for automated FNSKU labeling and bundling.',
-    pitchFeature3Title: 'Real-Time Margin Engine',
-    pitchFeature3Desc: 'Exact net profit calculations accounting for Amazon Referral, FBA Fulfillment, Prep Fees, and Inbound Freight.',
-    pitchPricingTitle: 'Commercial SaaS Plans',
-    pitchPricingSub: 'Ready to market for Amazon sellers and brands in the US',
-    planStarter: 'Starter Plan',
+    pitchHeroTag: 'B2B Commercial Platform',
+    pitchHeroTitle1: 'The Complete Management Suite for',
+    pitchHeroTitle2: 'Amazon FBA & Cross-Border Operations',
+    pitchHeroSub: 'Automate purchases, control unit economics, and sync domestic and international inventory on a single intelligent platform.',
+    pitchFeature1Title: 'Precise Unit Economics',
+    pitchFeature1Desc: 'Automated deductions for Amazon referral fees, FBA fulfillment rates, and 3PL prep charges.',
+    pitchFeature2Title: 'Multi-Hub Logistics',
+    pitchFeature2Desc: 'Monitor international shipments at Prep Ninjas and national road freight with unified tracking.',
+    pitchFeature3Title: 'Native Multi-Currency',
+    pitchFeature3Desc: 'Manage operations in USD ($) and BRL (R$) with distinct accounting and zero confusion.',
+    pitchPricingTitle: 'Software Access Plans',
+    pitchPricingSub: 'Engineered specifically for scaling Amazon commercial sellers',
+    planStarter: 'Starter',
     planPro: 'Pro Suite',
     planEnterprise: 'Enterprise',
     btnStartTrial: 'Start Free Trial',
-    btnSubscribePro: 'Subscribe Pro Suite',
+    btnSubscribePro: 'Subscribe to Pro Suite',
     btnContactSales: 'Contact Sales',
 
     // Footer
-    footerDesc: 'Official e-commerce automation, product sourcing, and sales intelligence platform for Amazon FBA.',
-    footerAddressTitle: 'Registered Business Address',
+    footerDesc: 'Official e-commerce automation, FBA intelligence, and cross-border management platform by HelpUS.',
+    footerAddressTitle: 'Official Registered Address',
     footerAddress: '241 E 16st STE B4, Gulf Shores, AL 36542, United States',
-    footerContactTitle: 'HelpUS LLC Official Contact',
+    footerContactTitle: 'Contact & Operations',
     footerPhone: '+1 (334) 219-3221 / +55 (83) 99872-1848',
     footerEmail: 'contact@helpusllc.com',
-    footerRights: '© 2026 HelpUS LLC. All rights reserved.',
+    footerRights: '© 2026 HelpUS Global. All rights reserved.',
   },
 
   es: {
     // Header
-    activeAccount: 'HelpUS LLC',
-    marketLabel: 'Amazon EE.UU. (sellercentral.amazon.com)',
-    fbaPartner: 'Socio de Prep FBA: Prep Ninjas (EE.UU.)',
-    searchPlaceholder: 'Buscar ASIN, Producto, Proveedor...',
-    saasModeBtn: 'Modo Comercial SaaS',
+    activeAccount: 'HelpUS Global',
+    marketLabel: 'Ecosistema Integrado EE.UU. y Brasil',
+    fbaPartner: 'Prep Center EE.UU.: Prep Ninjas (UT)',
+    searchPlaceholder: 'Buscar ASIN, SKU, Factura, Producto...',
+    saasModeBtn: 'Modo SaaS',
+    mobileMenuToggle: 'Menú Principal',
 
-    // Sidebar
+    // Sidebar & Navigation
     mainNav: 'Navegación Principal',
-    navOverview: 'Visión General',
-    navDealFinder: 'Deal Finder (Buscador)',
+    operationsNav: 'Operaciones Activas',
+    toolsNav: 'Herramientas de Gestión',
+    navOverview: 'Visión Ejecutiva',
+    navUSA: '🇺🇸 Operación EE.UU. (FBA)',
+    navBrasil: '🇧🇷 Operación Brasil (NF-e)',
     navCalculator: 'Calculadora FBA y Prep',
-    navPrepTracker: 'Rastreo Prep Ninjas',
-    navSuppliers: 'Proveedores EE.UU.',
-    navPitch: 'Presentación SaaS',
-    connectedTools: 'Herramientas Conectadas',
-    sidebarFooter: 'Plataforma configurada para los ecosistemas de Amazon US y Prep Ninjas',
-    statusOnline: 'En línea',
+    navPrepTracker: 'Seguimiento y Logística',
+    navSuppliers: 'Proveedores Homologados',
+    navDealFinder: 'Búsqueda de Productos',
+    navPitch: 'Presentación Comercial',
+    connectedTools: 'Conexiones Activas',
+    sidebarFooter: 'Plataforma HelpUS Multi-Almacén • EE.UU. y Brasil',
+    statusOnline: 'Operativo',
 
-    // Dashboard
-    dashTitle: 'Panel Ejecutivo de Inteligencia FBA',
-    dashSubtitle: 'Rastree el potencial de ingresos, márgenes de beneficio neto, minería de proveedores de EE. UU. y estado logístico de Prep Ninjas.',
+    // Executive Overview (Dashboard)
+    execTitle: 'Panel Ejecutivo HelpUS',
+    execSubtitle: 'Visión clara, consolidada y sencilla de las dos operaciones comerciales activas de HelpUS.',
+    dashTitle: 'Panel Ejecutivo HelpUS',
+    dashSubtitle: 'Visión clara, consolidada y sencilla de las dos operaciones comerciales activas de HelpUS.',
     mineBtn: 'Buscar Nuevos Productos',
-    potentialProfit: 'Beneficio Potencial (Lotes de Prueba)',
-    grossRevenue: 'Ingresos Brutos Proyectados',
-    avgRoi: 'ROI Promedio de Productos',
-    prepStatus: 'Estado en Prep Ninjas',
-    chartTitle: 'Proyección Financiera de Lotes (en USD)',
-    chartSubtitle: 'Comparación de Ingresos, Costos Totales y Beneficio Neto por Producto',
-    chartRevenue: 'Ingresos',
-    chartCosts: 'Costos Logísticos + Producto',
+    potentialProfit: 'Beneficio Neto Real',
+    grossRevenue: 'Facturación Proyectada',
+    chartTitle: 'Proyección de Lotes (Moneda Local)',
+    chartCosts: 'Costos Totales',
+    chartRevenue: 'Facturación',
     chartNetProfit: 'Beneficio Neto',
-    opStatusTitle: 'Estado Operativo de HelpUS',
-    featuredDealsTitle: 'Productos Candidatos Destacados (Ungated)',
-    featuredDealsSubtitle: 'Productos sin restricción de marca listos para el lote de prueba inicial',
-    viewAll: 'Ver Todos',
+    globalSummaryTitle: 'Resumen General de Operaciones',
+    globalSummarySub: 'Acceda a cada operación de forma independiente para ver métricas dedicadas sin confusión.',
+    cardUsaTitle: 'Operación Estados Unidos (HelpUS LLC)',
+    cardUsaDesc: 'Ventas en Amazon US FBA con recepción y preparación en Prep Ninjas (Salt Lake City, UT). Lote piloto de bridas de silicona reutilizables.',
+    cardUsaAction: 'Entrar a Operación EE.UU. &rarr;',
+    cardBrTitle: 'Operación Brasil (HelpUS Brasil)',
+    cardBrDesc: 'Distribución nacional en alianza con Nativos do Brasil. Pedido Piloto #3404 facturado con NF-e 00002509 y flete terrestre Braspress hacia João Pessoa/PB.',
+    cardBrAction: 'Entrar a Operación Brasil &rarr;',
+    kpiTotalSkus: 'SKUs Activos',
+    kpiTotalUnits: 'Unidades en Tránsito',
+    kpiUsProfit: 'Beneficio Previsto EE.UU.',
+    kpiBrProfit: 'Beneficio Previsto Brasil',
+    quickToolsTitle: 'Acceso Rápido a Herramientas',
 
-    // Deal Finder
-    finderTitle: 'Deal Finder (Centro de Búsqueda de Productos)',
-    finderSubtitle: 'Filtre proveedores de EE. UU., verifique el margen neto descontando FBA + Prep Ninjas y vea la liberación (Ungated).',
-    exportCsv: 'Exportar CSV',
-    addCandidate: 'Añadir Producto Candidato',
-    searchLabel: 'Buscar',
-    searchPlaceholderInput: 'Buscar por ASIN, Nombre o Proveedor...',
-    categoryLabel: 'Categoría',
-    minRoiLabel: 'ROI Mínimo:',
-    colProduct: 'Producto y ASIN',
-    colSupplier: 'Proveedor EE.UU.',
-    colPricing: 'Costo / Venta',
-    colFees: 'Tarifas FBA + Prep',
-    colProfitRoi: 'Beneficio Neto / ROI',
-    colUngated: 'Liberación (Ungated)',
-    colAction: 'Acción',
-    ungatedApproved: 'UNGATED (Aprobado)',
-    ungatedRequires: 'Requiere Aprobación',
-    btnSimulateFees: 'Simular Tarifas',
+    // USA Page
+    usaPageTitle: 'Operación Estados Unidos (HelpUS LLC)',
+    usaPageSubtitle: 'Control dedicado de la cuenta Amazon US FBA, tarifas en Dólares (USD) y logística en Prep Ninjas.',
+    usaPartnerTitle: 'Centro de Preparación Homologado',
+    usaPartnerDesc: 'Prep Ninjas LLC (869 E 4500 S, Salt Lake City, UT 84107). Inspección, etiquetado de códigos FNSKU ($1.50/un) y despacho a centros FBA de Amazon mediante UPS Ground.',
+    usaProductCardTitle: 'Producto Piloto Activo',
+    usaProductCardSub: 'Artículo catalogado y aprobado con Exención de GTIN oficial en Amazon.com.',
+    usaAsinLabel: 'Código ASIN:',
+    usaSkuLabel: 'Código SKU:',
+    usaBatchLabel: 'Lote Actual:',
+    usaDestinationLabel: 'Destino Amazon:',
+    usaUnitCost: 'Costo de Adquisición:',
+    usaSalePrice: 'Precio de Venta:',
+    usaAmazonFees: 'Tarifas Amazon FBA:',
+    usaPrepFee: 'Tarifa Prep Center:',
+    usaNetMargin: 'Beneficio Neto / Margen:',
+    usaLogisticsFlowTitle: 'Flujo Logístico EE.UU.',
+    usaComplianceTitle: 'Normas de Cumplimiento y Embalaje',
+    usaPolybagRule: 'Bolsa de polietileno individual con aviso de asfixia en inglés obligatorio.',
+    usaOriginStampRule: 'Marca visible "Made in China" impresa en la caja master exterior.',
 
-    // Add Modal
-    modalTitle: 'Añadir Producto Candidato',
-    modalProductTitle: 'Título del Producto',
-    modalAsin: 'Código ASIN',
-    modalCategory: 'Categoría',
-    modalSupplier: 'Nombre del Proveedor EE.UU.',
-    modalBuyPrice: 'Precio de Compra ($)',
-    modalSellPrice: 'Precio Venta Amazon ($)',
-    modalCancel: 'Cancelar',
-    modalSave: 'Guardar Producto en Deal Finder',
+    // Brasil Page
+    brPageTitle: 'Operación Brasil (HelpUS Brasil / MEI)',
+    brPageSubtitle: 'Gestión de compras, inventario nacional y ventas locales en Reales (BRL) mediante Nativos do Brasil.',
+    brPartnerTitle: 'Proveedor Principal Homologado',
+    brPartnerDesc: 'Nativos do Brasil Produtos Naturais Ltda (CNPJ: 47.693.854/0001-64, Vila Velha/ES). Fabricante directo de nutracéuticos y fitoterápicos en frascos de 60 cápsulas.',
+    brInvoiceTitle: 'Factura Fiscal de Entrada (NF-e Nº 00002509)',
+    brInvoiceKeyLabel: 'Clave de Acceso SEFAZ:',
+    brTotalInvoiceLabel: 'Valor Total con Flete:',
+    brLogisticsPartner: 'Transportista Oficial:',
+    brDeliveryForecast: 'Previsión de Entrega:',
+    brDeliveryAddress: 'Dirección de Entrega:',
+    brProductsTableTitle: '6 SKUs Líderes Adquiridos en el Pedido Piloto #3404',
+    brProductsTableSub: 'Productos inspeccionados para distribución en canales propios y marketplaces de Brasil.',
+    brColProduct: 'Producto / Suplemento',
+    brColQty: 'Cant.',
+    brColUnitCost: 'Costo Unit.',
+    brColEstSale: 'Venta Est.',
+    brColNetProfit: 'Beneficio Unit.',
+    brColRoi: 'ROI Est.',
 
     // Calculator
-    calcTitle: 'Calculadora de Margen FBA y Prep Ninjas',
-    calcSubtitle: 'Simulación matemática exacta en tiempo real descontando todas las tarifas de Amazon EE. UU. y costos de manejo en Prep Ninjas.',
-    dataSectionTitle: 'Datos de Compra y Venta',
-    sellPriceLabel: 'Precio de Venta en Amazon ($)',
-    buyPriceLabel: 'Precio en el Proveedor ($)',
-    preppingFeeLabel: 'Tarifa Prep Ninjas ($/unid)',
-    freightLabel: 'Flete Interno ($/unid)',
-    weightLabel: 'Peso del Producto (lbs)',
-    batchQtyLabel: 'Lote de Prueba (Cantidad)',
-    resultUnitTitle: 'Resultado por Unidad Vendida',
+    calcTitle: 'Calculadora de Unit Economics y FBA',
+    calcSubtitle: 'Simule con precisión el retorno financiero de cualquier producto antes de comprar.',
+    calcCurrencySwitch: 'Moneda de la Simulación:',
+    calcPresetsTitle: 'Cargar Ajustes Rápidos:',
+    calcPresetCableTies: 'Silicone Cable Ties (EE.UU. - USD)',
+    calcPresetResveratrol: 'Resveratrol Softgel (BR - BRL)',
+    dataSectionTitle: 'Datos de Compra y Costos',
+    sellPriceLabel: 'Precio de Venta Estimado',
+    buyPriceLabel: 'Costo de Adquisición en Proveedor',
+    preppingFeeLabel: 'Tarifa de Prep / Etiquetado',
+    freightLabel: 'Flete Unitario Estimado',
+    weightLabel: 'Peso Unitario Estimado',
+    batchQtyLabel: 'Cantidad del Lote',
+    resultUnitTitle: 'Resultado por Unidad',
     badgeProfitable: 'PRODUCTO RENTABLE',
     badgeLoss: 'PÉRDIDA',
     unitNetProfitLabel: 'Beneficio Neto Unitario',
-    unitRoiLabel: 'ROI Neto',
-    breakdownTitle: 'Desglose de Tarifas y Costos (1 Unidad)',
-    refFeeLabel: '(-) Comisión Amazon (Referral 15%):',
+    unitRoiLabel: 'ROI Estimado',
+    breakdownTitle: 'Desglose de Costos y Deducciones',
+    refFeeLabel: '(-) Comisión Marketplace (~15%):',
     fbaFeeLabel: '(-) Tarifa Logística FBA:',
-    prepFeeLabel: '(-) Tarifa Prep Ninjas (3PL):',
-    freightInboundLabel: '(-) Flete Interno (Est.):',
+    prepFeeLabel: '(-) Tarifa de Manejo Prep Center:',
+    freightInboundLabel: '(-) Flete de Entrada (Estimado):',
     supplierProductCostLabel: '(-) Costo del Producto en Proveedor:',
-    cleanNetProfitLabel: '(=) Beneficio Neto en Banco:',
-    batchProjectionTitle: 'Proyección para Lote de {qty} Unidades:',
+    cleanNetProfitLabel: '(=) Beneficio Neto Real en Caja:',
+    batchProjectionTitle: 'Proyección Total del Lote ({qty} un):',
     investmentLabel: 'Inversión:',
-    revenueLabel: 'Ingresos:',
+    revenueLabel: 'Facturación:',
     profitLabel: 'Beneficio Neto:',
 
     // Prep Tracker
-    trackerTitle: 'Rastreo Logístico Prep Ninjas (3PL)',
-    trackerSubtitle: 'Seguimiento en tiempo real del flujo desde el proveedor hasta el almacén de Amazon FBA en EE. UU.',
-    prepDashboardBtn: 'Acceder a Panel Prep Ninjas',
-    warehouseAddr: 'Gulf Shores / Almacén EE.UU.',
-    unitsInTransit: '200 Unidades (3 Lotes)',
-    prepService: 'Inspección + Etiquetado FNSKU',
-    step1: 'Pedido Proveedor',
-    step2: 'En Tránsito a Prep',
-    step3: 'En Prep Ninjas',
-    step4: 'Etiquetado FNSKU',
-    step5: 'Enviado a FBA',
-    step6: 'Recibido por Amazon',
+    trackerTitle: 'Seguimiento Logístico Multi-Almacén',
+    trackerSubtitle: 'Monitoree los envíos en tránsito con separación clara entre los centros de EE.UU. y Brasil.',
+    prepDashboardBtn: 'Portal Prep Ninjas',
+    braspressBtn: 'Rastreo Braspress',
+    tabAllShipments: 'Todos los Envíos',
+    tabUsaFba: '🇺🇸 Lotes EE.UU. (Prep Ninjas / Amazon)',
+    tabBrasilLogistics: '🇧🇷 Lotes Brasil (Braspress / JPA)',
+    unitsInTransit: 'unidades en transporte',
+    statusOrdered: 'Pedido Creado',
+    statusInTransit: 'En Transporte',
+    statusAtPrep: 'En Almacén / Colecta',
+    statusPrepped: 'Etiquetado y Listo',
+    statusEnRouteFba: 'En Ruta hacia Amazon',
+    statusReceivedFba: 'Recibido / Disponible',
+    stepDeliveryEst: 'Previsión de Entrega:',
 
     // Suppliers
-    supTitle: 'Proveedores Verificados de EE. UU. (Wholesale / B2B)',
-    supSubtitle: 'Catálogo de mayoristas que venden con factura legal para LLCs y entregan en Prep Ninjas.',
-    supShipsToPrep: 'Envío a Prep Ninjas',
-    supMoq: 'MOQ Mínimo:',
-    supVisitCatalog: 'Visitar Catálogo',
+    supTitle: 'Proveedores, Fabricantes y 3PL',
+    supSubtitle: 'Catálogo homologado de socios comerciales categorizados por país de operación.',
+    tabAllSuppliers: 'Todos los Proveedores',
+    tabUsa: '🇺🇸 Estados Unidos',
+    tabBrasil: '🇧🇷 Brasil',
+    tabChina: '🇨🇳 China',
+    supShipsToPrep: 'Envía Directo al Prep Center',
+    supMoq: 'Pedido Mínimo (MOQ):',
+    supVisitCatalog: 'Ver Catálogo',
+
+    // Deal Finder
+    finderTitle: 'Búsqueda de Oportunidades (Deal Finder)',
+    finderSubtitle: 'Filtre productos viables, analice el margen descontando tarifas y verifique la marca.',
+    exportCsv: 'Exportar CSV',
+    addCandidate: 'Agregar Candidato',
+    searchLabel: 'Buscar',
+    searchPlaceholderInput: 'Buscar por ASIN, SKU, Producto o Proveedor...',
+    categoryLabel: 'Categoría',
+    minRoiLabel: 'ROI Mínimo:',
+    colProduct: 'Producto e Identificador',
+    colSupplier: 'Proveedor',
+    colPricing: 'Costo / Venta',
+    colFees: 'Tarifas y Logística',
+    colProfitRoi: 'Beneficio Neto / ROI',
+    colUngated: 'Estado de Marca',
+    colAction: 'Simulación',
+    ungatedApproved: 'APROBADO (Ungated)',
+    ungatedRequires: 'Requiere Autorización',
+    btnSimulateFees: 'Simular en Calculadora',
+
+    // Add Modal
+    modalTitle: 'Registrar Nuevo Producto para Análisis',
+    modalProductTitle: 'Título del Producto',
+    modalAsin: 'Código ASIN o SKU',
+    modalCategory: 'Categoría',
+    modalSupplier: 'Nombre del Proveedor',
+    modalBuyPrice: 'Precio de Compra',
+    modalSellPrice: 'Precio de Venta Estimado',
+    modalCancel: 'Cancelar',
+    modalSave: 'Guardar en Radar',
 
     // SaaS Pitch
-    pitchHeroTag: 'HelpUS FBA Suite • Plataforma Enterprise SaaS',
-    pitchHeroTitle1: 'Automatice la Búsqueda y Logística para',
-    pitchHeroTitle2: 'Vendedores de Amazon y LLCs en EE.UU.',
-    pitchHeroSub: 'El motor de software todo en uno definitivo que conecta proveedores mayoristas de EE. UU., centros Prep 3PL (Prep Ninjas) y Amazon Seller Central.',
-    pitchFeature1Title: 'Búsqueda Automatizada de Deals',
-    pitchFeature1Desc: 'Escanea listas de precios al por mayor y liquidadores para extraer productos de alto ROI sin barreras de marca.',
-    pitchFeature2Title: 'Sincronización 3PL Prep Center',
-    pitchFeature2Desc: 'Integración de seguimiento directo con Prep Ninjas y almacenes de EE. UU. para etiquetado FNSKU y empaquetado.',
-    pitchFeature3Title: 'Motor de Márgenes en Tiempo Real',
-    pitchFeature3Desc: 'Cálculos exactos de beneficio neto descontando la comisión de Amazon, logística FBA, tarifas Prep y flete.',
-    pitchPricingTitle: 'Planes Comerciales SaaS',
-    pitchPricingSub: 'Listo para comercializar a marcas y vendedores de Amazon en EE. UU.',
-    planStarter: 'Plan Starter',
+    pitchHeroTag: 'Módulo Comercial B2B',
+    pitchHeroTitle1: 'La Plataforma Completa de Gestión para',
+    pitchHeroTitle2: 'Operaciones Amazon FBA y Cross-Border',
+    pitchHeroSub: 'Automatice compras, controle el unit economics y sincronice inventarios internacionales y nacionales en un solo lugar.',
+    pitchFeature1Title: 'Unit Economics Exacto',
+    pitchFeature1Desc: 'Descuentos automáticos de comisiones de Amazon, tarifas de entrega y etiquetado 3PL.',
+    pitchFeature2Title: 'Logística Multi-Hub',
+    pitchFeature2Desc: 'Monitoree envíos en Prep Ninjas y logística terrestre nacional con seguimiento unificado.',
+    pitchFeature3Title: 'Multi-Moneda Nativo',
+    pitchFeature3Desc: 'Gestione operaciones en USD ($) y BRL (R$) de forma separada y sin confusiones.',
+    pitchPricingTitle: 'Planes de Acceso',
+    pitchPricingSub: 'Diseñado a medida para vendedores en crecimiento en Amazon',
+    planStarter: 'Starter',
     planPro: 'Pro Suite',
     planEnterprise: 'Enterprise',
     btnStartTrial: 'Iniciar Prueba',
-    btnSubscribePro: 'Suscribir Pro Suite',
-    btnContactSales: 'Contactar Ventas',
+    btnSubscribePro: 'Contratar Versión Pro',
+    btnContactSales: 'Contactar Asesores',
 
     // Footer
-    footerDesc: 'Plataforma oficial de automatización de comercio electrónico, minería de productos e inteligencia de ventas para Amazon FBA.',
-    footerAddressTitle: 'Dirección Comercial Registrada',
+    footerDesc: 'Plataforma oficial de automatización de comercio electrónico y gestión FBA HelpUS.',
+    footerAddressTitle: 'Dirección Comercial Oficial',
     footerAddress: '241 E 16st STE B4, Gulf Shores, AL 36542, Estados Unidos',
-    footerContactTitle: 'Contacto Oficial HelpUS LLC',
+    footerContactTitle: 'Atención y Operaciones',
     footerPhone: '+1 (334) 219-3221 / +55 (83) 99872-1848',
     footerEmail: 'contact@helpusllc.com',
-    footerRights: '© 2026 HelpUS LLC. Todos los derechos reservados.',
-  }
+    footerRights: '© 2026 HelpUS Global. Todos los derechos reservados.',
+  },
 };
