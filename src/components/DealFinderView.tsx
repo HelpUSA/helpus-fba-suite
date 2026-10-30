@@ -36,7 +36,7 @@ export default function DealFinderView({ products, onAddProduct, setActiveView, 
   const [newAmazonPrice, setNewAmazonPrice] = useState('16.99');
   const [newImageUrl] = useState('https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?w=400&auto=format&fit=crop&q=80');
 
-  const categories = ['All', 'Home & Kitchen', 'Pet Supplies', 'Tools & Home Improvement', 'Office Products'];
+  const categories = ['All', 'Tools & Home Improvement', 'Suplementos & Vitaminas', 'Home & Kitchen', 'Pet Supplies', 'Office Products'];
 
   const filteredProducts = products.filter((p) => {
     const matchesSearch =
@@ -79,6 +79,10 @@ export default function DealFinderView({ products, onAddProduct, setActiveView, 
       estMonthlySales: 350,
       bsrRank: 15200,
       status: 'Candidate',
+      marketplace: 'Amazon US',
+      currency: 'USD',
+      currentStock: 0,
+      warehouseLocation: 'Sourcing Pipeline',
     };
 
     onAddProduct(newDeal);
@@ -221,7 +225,9 @@ export default function DealFinderView({ products, onAddProduct, setActiveView, 
                       <div className="space-y-1">
                         <div className="font-semibold text-white truncate max-w-xs">{p.title}</div>
                         <div className="flex items-center space-x-2 text-[10px] font-mono text-slate-400">
-                          <span className="bg-slate-800 px-1.5 py-0.5 rounded text-blue-300">ASIN: {p.asin}</span>
+                          <span>{p.marketplace === 'Amazon BR' ? '🇧🇷 BR' : '🇺🇸 US'}</span>
+                          <span>•</span>
+                          <span className="bg-slate-800 px-1.5 py-0.5 rounded text-blue-300">{p.sku ? `SKU: ${p.sku}` : `ASIN: ${p.asin}`}</span>
                           <span>•</span>
                           <span>{p.category}</span>
                           <span>•</span>
@@ -246,20 +252,20 @@ export default function DealFinderView({ products, onAddProduct, setActiveView, 
 
                   {/* Pricing */}
                   <td className="py-4 px-4 font-mono">
-                    <div className="text-slate-300">Buy: <strong className="text-white">${p.supplierPrice.toFixed(2)}</strong></div>
-                    <div className="text-slate-400">Sell: <strong className="text-blue-400">${p.amazonPrice.toFixed(2)}</strong></div>
+                    <div className="text-slate-300">Buy: <strong className="text-white">{p.currency === 'BRL' ? 'R$' : '$'} {p.supplierPrice.toFixed(2)}</strong></div>
+                    <div className="text-slate-400">Sell: <strong className="text-blue-400">{p.currency === 'BRL' ? 'R$' : '$'} {p.amazonPrice.toFixed(2)}</strong></div>
                   </td>
 
                   {/* Fee Breakdown */}
                   <td className="py-4 px-4 font-mono text-slate-400 text-[11px]">
-                    <div>FBA: ${p.fbaFee.toFixed(2)}</div>
-                    <div>Ref (15%): ${p.amazonReferralFee.toFixed(2)}</div>
-                    <div>Prep: ${p.prepFee.toFixed(2)}</div>
+                    <div>FBA/Envio: {p.currency === 'BRL' ? 'R$' : '$'} {p.fbaFee.toFixed(2)}</div>
+                    <div>Ref (15%): {p.currency === 'BRL' ? 'R$' : '$'} {p.amazonReferralFee.toFixed(2)}</div>
+                    <div>Prep: {p.currency === 'BRL' ? 'R$' : '$'} {p.prepFee.toFixed(2)}</div>
                   </td>
 
                   {/* Net Profit & ROI */}
                   <td className="py-4 px-4 font-mono">
-                    <div className="text-emerald-400 font-bold text-sm">+${p.netProfit.toFixed(2)}</div>
+                    <div className="text-emerald-400 font-bold text-sm">+{p.currency === 'BRL' ? 'R$' : '$'} {p.netProfit.toFixed(2)}</div>
                     <div className="text-emerald-500 font-semibold text-[11px]">+{p.roiPercent}% ROI</div>
                   </td>
 

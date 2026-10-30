@@ -47,7 +47,7 @@ export default function Sidebar({ activeView, setActiveView, productsCount, lang
       id: 'prep-tracker',
       label: t.navPrepTracker,
       icon: Truck,
-      badge: '3',
+      badge: '2',
     },
     {
       id: 'suppliers',
