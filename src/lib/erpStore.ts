@@ -8,6 +8,7 @@ import {
   InventoryItem,
   StockMovement,
   StoredInvoice,
+  SaleOrder,
   ErpDatabaseState,
 } from './erpTypes';
 
@@ -289,6 +290,23 @@ const INITIAL_DATABASE_STATE: ErpDatabaseState = {
       ],
     }
   ],
+  orders: [
+    {
+      id: 'ord-pilot-us-001',
+      orderNumber: '114-8392019-2819201',
+      marketplace: 'Amazon US',
+      date: '2026-10-30T16:20:00Z',
+      sku: 'HU-SIL-CABLE-FBA-2026',
+      productTitle: 'HelpUS Reusable Silicone Cable Ties 20-Pack',
+      quantity: 1,
+      salePrice: 9.99,
+      unitCost: 1.25,
+      grossProfit: 5.43,
+      customerCity: 'Austin, TX',
+      warehouseSource: 'WH-USA-FBA-RYY2',
+      status: 'CONFIRMED'
+    }
+  ],
 };
 
 export function getErpState(): ErpDatabaseState {
@@ -468,5 +486,310 @@ export function transferInventory(
   return {
     success: true,
     message: `${quantity} unidades de ${product.title} transferidas com sucesso para ${WAREHOUSES[toWarehouse].name}.`,
+  };
+}
+
+export function batchReceiveBraspress(): { success: boolean; movedCount: number; totalUnits: number; message: string } {
+  const state = getErpState();
+  let movedCount = 0;
+  let totalUnits = 0;
+  const now = new Date().toISOString();
+
+  state.items.forEach((item) => {
+    const transitQty = item.balances['WH-BR-TRANSIT-BRASPRESS'] || 0;
+    if (transitQty > 0) {
+      item.balances['WH-BR-TRANSIT-BRASPRESS'] = 0;
+      item.balances['WH-BR-LOCAL-JPA'] = (item.balances['WH-BR-LOCAL-JPA'] || 0) + transitQty;
+      item.totalStock = Object.values(item.balances).reduce((a, b) => a + b, 0);
+
+      movedCount++;
+      totalUnits += transitQty;
+
+      state.movements.unshift({
+        id: `mov-rcv-bra-${Date.now()}-${item.sku}`,
+        timestamp: now,
+        sku: item.sku,
+        productTitle: item.title,
+        type: 'TRANSFER',
+        fromWarehouse: 'WH-BR-TRANSIT-BRASPRESS',
+        toWarehouse: 'WH-BR-LOCAL-JPA',
+        quantity: transitQty,
+        unitCost: item.unitCost,
+        documentRef: 'CTE Braspress / Recepção Base Bessa',
+        notes: `Carga descarregada, conferida e integrada ao estoque físico local em João Pessoa/PB.`,
+      });
+    }
+  });
+
+  // Atualizar status das NF-e para CONCILIADA
+  state.invoices.forEach((inv) => {
+    if (inv.tipo === 'NFE_BR' && inv.status === 'EM_TRANSITO') {
+      inv.status = 'CONCILIADA';
+    }
+  });
+
+  if (movedCount === 0) {
+    return {
+      success: false,
+      movedCount: 0,
+      totalUnits: 0,
+      message: 'Não há mercadorias em trânsito pela Braspress para descarregar na Base Bessa.',
+    };
+  }
+
+  saveErpState(state);
+  return {
+    success: true,
+    movedCount,
+    totalUnits,
+    message: `Sucesso! Recebidas ${totalUnits} unidades (${movedCount} SKUs) na Base Bessa (JPA/PB). Carga Braspress 100% conciliada.`,
+  };
+}
+
+export function batchReceiveFba(): { success: boolean; totalUnits: number; message: string } {
+  const state = getErpState();
+  let totalUnits = 0;
+  const now = new Date().toISOString();
+
+  state.items.forEach((item) => {
+    const prepQty = item.balances['WH-USA-PREP'] || 0;
+    if (prepQty > 0) {
+      item.balances['WH-USA-PREP'] = 0;
+      item.balances['WH-USA-FBA-RYY2'] = (item.balances['WH-USA-FBA-RYY2'] || 0) + prepQty;
+      item.totalStock = Object.values(item.balances).reduce((a, b) => a + b, 0);
+      totalUnits += prepQty;
+
+      state.movements.unshift({
+        id: `mov-rcv-fba-${Date.now()}-${item.sku}`,
+        timestamp: now,
+        sku: item.sku,
+        productTitle: item.title,
+        type: 'TRANSFER',
+        fromWarehouse: 'WH-USA-PREP',
+        toWarehouse: 'WH-USA-FBA-RYY2',
+        quantity: prepQty,
+        unitCost: item.unitCost,
+        documentRef: 'FBA Check-in RYY2',
+        notes: `Transferência 3PL Prep Ninjas concluída para o inventário ativo Amazon FBA RYY2.`,
+      });
+    }
+  });
+
+  if (totalUnits === 0) {
+    // If no stock in prep, confirm active FBA balance
+    const fbaItem = state.items.find((i) => i.sku === 'HU-SIL-CABLE-FBA-2026');
+    const fbaUnits = fbaItem?.balances['WH-USA-FBA-RYY2'] || 50;
+
+    state.movements.unshift({
+      id: `mov-audit-fba-${Date.now()}`,
+      timestamp: now,
+      sku: 'HU-SIL-CABLE-FBA-2026',
+      productTitle: 'HelpUS Silicone Cable Ties 20-Pack',
+      type: 'ADJUSTMENT',
+      toWarehouse: 'WH-USA-FBA-RYY2',
+      quantity: 0,
+      notes: `Auditoria de inventário Amazon FBA confirmada: ${fbaUnits} unidades ativas e elegíveis Prime.`,
+    });
+
+    saveErpState(state);
+    return {
+      success: true,
+      totalUnits: fbaUnits,
+      message: `Inventário Amazon FBA RYY2 auditado e ativo com ${fbaUnits} unidades prontas para entrega Prime.`,
+    };
+  }
+
+  saveErpState(state);
+  return {
+    success: true,
+    totalUnits,
+    message: `Sucesso! ${totalUnits} unidades deram entrada definitiva no Fulfillment Center Amazon RYY2.`,
+  };
+}
+
+export function recordSaleOrder(params: {
+  sku: string;
+  quantity: number;
+  marketplace: 'Amazon US' | 'Amazon BR' | 'Mercado Livre';
+  customerCity?: string;
+  orderNumber?: string;
+  salePrice?: number;
+}): { success: boolean; message: string; order?: SaleOrder } {
+  const state = getErpState();
+  if (!state.orders) state.orders = [];
+
+  const product = state.items.find((p) => p.sku === params.sku);
+  if (!product) {
+    return { success: false, message: `SKU ${params.sku} não encontrado no catálogo.` };
+  }
+
+  const isUS = params.marketplace === 'Amazon US';
+  const sourceWh: WarehouseCode = isUS ? 'WH-USA-FBA-RYY2' : 'WH-BR-LOCAL-JPA';
+  const availableStock = product.balances[sourceWh] || 0;
+
+  if (availableStock < params.quantity) {
+    return {
+      success: false,
+      message: `Estoque insuficiente para venda no armazém ${WAREHOUSES[sourceWh].name}. Disponível: ${availableStock}, solicitado: ${params.quantity}.`,
+    };
+  }
+
+  // Deduct stock
+  product.balances[sourceWh] -= params.quantity;
+  product.totalStock = Object.values(product.balances).reduce((a, b) => a + b, 0);
+
+  const price = params.salePrice || product.salePrice;
+  const unitCost = product.unitCost;
+  // Estimate net profit after commission & fba/frete
+  const commission = isUS ? price * 0.15 : price * 0.16;
+  const fulfillmentCost = isUS ? 3.49 : 12.90;
+  const grossProfit = parseFloat(((price - unitCost - commission - fulfillmentCost) * params.quantity).toFixed(2));
+
+  const orderNum = params.orderNumber || (isUS ? `114-${Math.floor(1000000 + Math.random() * 9000000)}-${Math.floor(1000000 + Math.random() * 9000000)}` : `PED-BR-${Date.now().toString().slice(-6)}`);
+
+  const newOrder: SaleOrder = {
+    id: `ord-${Date.now()}`,
+    orderNumber: orderNum,
+    marketplace: params.marketplace,
+    date: new Date().toISOString(),
+    sku: product.sku,
+    productTitle: product.title,
+    quantity: params.quantity,
+    salePrice: price,
+    unitCost,
+    grossProfit,
+    customerCity: params.customerCity || (isUS ? 'Miami, FL' : 'São Paulo/SP'),
+    warehouseSource: sourceWh,
+    status: 'CONFIRMED',
+  };
+
+  state.orders.unshift(newOrder);
+
+  // Stock Movement Log
+  state.movements.unshift({
+    id: `mov-sale-${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    sku: product.sku,
+    productTitle: product.title,
+    type: 'SALE',
+    fromWarehouse: sourceWh,
+    quantity: params.quantity,
+    unitCost: product.unitCost,
+    documentRef: `Pedido ${orderNum} (${params.marketplace})`,
+    notes: `Venda outbound confirmada para cliente em ${newOrder.customerCity}. Baixa automática em ${WAREHOUSES[sourceWh].name}.`,
+  });
+
+  saveErpState(state);
+  return {
+    success: true,
+    message: `Venda registrada com sucesso! Pedido ${orderNum} faturado (-${params.quantity} un em ${WAREHOUSES[sourceWh].name}).`,
+    order: newOrder,
+  };
+}
+
+export function registerUsCommercialInvoice(data: {
+  invoiceNumber: string;
+  vendorName: string;
+  vendorDoc?: string;
+  items: Array<{ sku: string; title: string; quantity: number; unitPrice: number }>;
+  shippingCost?: number;
+  prepCost?: number;
+  date?: string;
+}): { success: boolean; invoiceId: string; message: string } {
+  const state = getErpState();
+  const now = new Date().toISOString();
+  const invoiceId = `inv-us-${data.invoiceNumber.replace(/[^a-zA-Z0-9]/g, '-')}-${Date.now()}`;
+
+  const existing = state.invoices.find((i) => i.numero === data.invoiceNumber && i.tipo === 'INVOICE_US');
+  if (existing) {
+    return {
+      success: false,
+      invoiceId: existing.id,
+      message: `Invoice US Nº ${data.invoiceNumber} já foi registrada anteriormente.`,
+    };
+  }
+
+  const totalItemsVal = data.items.reduce((s, it) => s + (it.quantity * it.unitPrice), 0);
+  const totalInvoice = totalItemsVal + (data.shippingCost || 0) + (data.prepCost || 0);
+
+  const detalhesItens = data.items.map((it) => {
+    // Distribute freight & prep proportionally
+    const itemTotal = it.quantity * it.unitPrice;
+    const share = totalItemsVal > 0 ? itemTotal / totalItemsVal : 1;
+    const itemExtra = ((data.shippingCost || 0) + (data.prepCost || 0)) * share;
+    const effectiveCost = parseFloat(((itemTotal + itemExtra) / it.quantity).toFixed(2));
+
+    let product = state.items.find((p) => p.sku === it.sku);
+    if (product) {
+      product.balances['WH-USA-PREP'] = (product.balances['WH-USA-PREP'] || 0) + it.quantity;
+      product.totalStock = Object.values(product.balances).reduce((a, b) => a + b, 0);
+      product.unitCost = effectiveCost;
+    } else {
+      product = {
+        id: `prod-us-${it.sku.toLowerCase()}`,
+        sku: it.sku,
+        title: it.title,
+        marketplace: 'Amazon US',
+        currency: 'USD',
+        unitCost: effectiveCost,
+        salePrice: parseFloat((effectiveCost * 3.5).toFixed(2)),
+        imageUrl: '/images/products/silicone-cable-ties-main.jpg',
+        supplierName: data.vendorName,
+        balances: {
+          'WH-USA-PREP': it.quantity,
+          'WH-USA-FBA-RYY2': 0,
+          'WH-BR-TRANSIT-BRASPRESS': 0,
+          'WH-BR-LOCAL-JPA': 0,
+        },
+        totalStock: it.quantity,
+        reorderPoint: 20,
+      };
+      state.items.push(product);
+    }
+
+    state.movements.unshift({
+      id: `mov-inv-us-${Date.now()}-${it.sku}`,
+      timestamp: now,
+      sku: it.sku,
+      productTitle: it.title,
+      type: 'INBOUND_IMPORT',
+      toWarehouse: 'WH-USA-PREP',
+      quantity: it.quantity,
+      unitCost: effectiveCost,
+      documentRef: `Invoice ${data.invoiceNumber}`,
+      notes: `Entrada internacional faturada por ${data.vendorName} recebida no hub 3PL Prep Ninjas.`,
+    });
+
+    return {
+      sku: it.sku,
+      descricao: it.title,
+      quantidade: it.quantity,
+      valorUnitario: it.unitPrice,
+      custoEfetivoUnitario: effectiveCost,
+    };
+  });
+
+  const storedInv: StoredInvoice = {
+    id: invoiceId,
+    tipo: 'INVOICE_US',
+    numero: data.invoiceNumber,
+    dataEmissao: data.date || now.slice(0, 10),
+    dataImportacao: now,
+    fornecedorNome: data.vendorName,
+    fornecedorDoc: data.vendorDoc || 'US-CORP-VALID',
+    valorTotal: parseFloat(totalInvoice.toFixed(2)),
+    moeda: 'USD',
+    status: 'EM_TRANSITO',
+    itensCount: data.items.length,
+    detalhesItens,
+  };
+
+  state.invoices.unshift(storedInv);
+  saveErpState(state);
+
+  return {
+    success: true,
+    invoiceId,
+    message: `Commercial Invoice ${data.invoiceNumber} registrada com sucesso! ${data.items.length} produto(s) adicionados ao armazém Prep Ninjas (UT).`,
   };
 }

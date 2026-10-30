@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getErpState, transferInventory, WAREHOUSES, WarehouseCode } from '@/lib/erpStore';
+import {
+  getErpState,
+  transferInventory,
+  batchReceiveBraspress,
+  batchReceiveFba,
+  recordSaleOrder,
+  WAREHOUSES,
+  WarehouseCode,
+} from '@/lib/erpStore';
 
 export async function GET() {
   try {
@@ -24,7 +32,8 @@ export async function GET() {
       lastUpdated: state.lastUpdated,
       items: state.items,
       warehouseSummary,
-      recentMovements: state.movements.slice(0, 15),
+      recentMovements: state.movements.slice(0, 20),
+      orders: state.orders || [],
     });
   } catch (error: any) {
     return NextResponse.json(
@@ -37,7 +46,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { action, sku, fromWarehouse, toWarehouse, quantity, notes } = body;
+    const { action, sku, fromWarehouse, toWarehouse, quantity, notes, orderNumber, marketplace, customerCity, salePrice } = body;
 
     if (action === 'transfer') {
       if (!sku || !fromWarehouse || !toWarehouse || !quantity || quantity <= 0) {
@@ -51,6 +60,49 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         ok: result.success,
         message: result.message,
+      });
+    }
+
+    if (action === 'batch_receive_braspress') {
+      const result = batchReceiveBraspress();
+      return NextResponse.json({
+        ok: result.success,
+        message: result.message,
+        movedCount: result.movedCount,
+        totalUnits: result.totalUnits,
+      });
+    }
+
+    if (action === 'batch_receive_fba') {
+      const result = batchReceiveFba();
+      return NextResponse.json({
+        ok: result.success,
+        message: result.message,
+        totalUnits: result.totalUnits,
+      });
+    }
+
+    if (action === 'record_sale') {
+      if (!sku || !quantity || quantity <= 0 || !marketplace) {
+        return NextResponse.json(
+          { ok: false, message: 'Informe SKU, quantidade válida e marketplace de venda.' },
+          { status: 400 }
+        );
+      }
+
+      const result = recordSaleOrder({
+        sku,
+        quantity,
+        marketplace,
+        customerCity,
+        orderNumber,
+        salePrice,
+      });
+
+      return NextResponse.json({
+        ok: result.success,
+        message: result.message,
+        order: result.order,
       });
     }
 

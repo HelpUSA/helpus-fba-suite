@@ -92,10 +92,27 @@ export interface StoredInvoice {
   }>;
 }
 
+export interface SaleOrder {
+  id: string;
+  orderNumber: string;
+  marketplace: 'Amazon US' | 'Amazon BR' | 'Mercado Livre';
+  date: string;
+  sku: string;
+  productTitle: string;
+  quantity: number;
+  salePrice: number;
+  unitCost: number;
+  grossProfit: number;
+  customerCity: string;
+  warehouseSource: WarehouseCode;
+  status: 'CONFIRMED' | 'DELIVERED';
+}
+
 export interface ErpDatabaseState {
   version: string;
   lastUpdated: string;
   items: InventoryItem[];
   movements: StockMovement[];
   invoices: StoredInvoice[];
+  orders?: SaleOrder[];
 }
