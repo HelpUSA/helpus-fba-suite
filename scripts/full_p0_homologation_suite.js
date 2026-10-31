@@ -58,69 +58,54 @@ async function runHomologationSuite() {
   `, [testSku]);
   console.log(`✓ Saldo inicial configurado: 10 unidades de ${testSku} em WH-BR-LOCAL-JPA.`);
 
-  console.log('\n[4/6] TESTE DE CONCORRÊNCIA COM ROW-LOCKING (SELECT ... FOR UPDATE)');
-  // Simular 2 transações simultâneas tentando debitar 7 unidades cada (total 14, mas saldo é 10)
-  // Apenas a primeira transação deve ter sucesso; a segunda deve ser rejeitada por saldo insuficiente.
-  const client1 = new Client({ connectionString: DATABASE_URL });
-  const client2 = new Client({ connectionString: DATABASE_URL });
-  await client1.connect();
-  await client2.connect();
+  console.log('\n[4/6] TESTE DE VERDADEIRA CONCORRÊNCIA SIMULTÂNEA (Promise.all COM SELECT FOR UPDATE)');
+  // Duas transações disparadas simultaneamente via Promise.all tentando debitar 7 unidades cada (total 14 un sobre saldo de 10)
+  const runTx = async (txId, qtyToDebit) => {
+    const c = new Client({ connectionString: DATABASE_URL });
+    await c.connect();
+    try {
+      await c.query('BEGIN');
+      console.log(`[Tx ${txId}] Conectado e aguardando lock FOR UPDATE...`);
+      const lockRes = await c.query(
+        `SELECT quantity FROM inventory_balances WHERE product_sku = $1 AND warehouse_code = 'WH-BR-LOCAL-JPA' FOR UPDATE`,
+        [testSku]
+      );
+      const available = lockRes.rows[0].quantity;
+      console.log(`[Tx ${txId}] Lock adquirido! Saldo disponível no momento: ${available}`);
 
-  let tx1Success = false;
-  let tx2Success = false;
-  let tx2Error = null;
+      // Simular latência de processamento real de 50ms para testar contenção e fila de lock no PostgreSQL
+      await new Promise((r) => setTimeout(r, 50));
 
-  await client1.query('BEGIN');
-  await client2.query('BEGIN');
+      if (available >= qtyToDebit) {
+        await c.query(
+          `UPDATE inventory_balances SET quantity = quantity - $1, updated_at = NOW() WHERE product_sku = $2 AND warehouse_code = 'WH-BR-LOCAL-JPA'`,
+          [qtyToDebit, testSku]
+        );
+        await c.query('COMMIT');
+        console.log(`[Tx ${txId}] COMMIT realizado com sucesso (-${qtyToDebit} un).`);
+        return { success: true, txId };
+      } else {
+        await c.query('ROLLBACK');
+        console.log(`[Tx ${txId}] ROLLBACK acionado: saldo insuficiente (disponível ${available}, solicitado ${qtyToDebit}).`);
+        return { success: false, txId, error: `Saldo insuficiente: disponível ${available}` };
+      }
+    } catch (err) {
+      await c.query('ROLLBACK').catch(() => {});
+      return { success: false, txId, error: err.message };
+    } finally {
+      await c.end();
+    }
+  };
 
-  // Client 1 adquire o lock FOR UPDATE
-  const lock1 = await client1.query(
-    `SELECT quantity FROM inventory_balances WHERE product_sku = $1 AND warehouse_code = 'WH-BR-LOCAL-JPA' FOR UPDATE`,
-    [testSku]
-  );
-  const bal1 = lock1.rows[0].quantity;
-  console.log(`Transação 1 obteve lock FOR UPDATE. Saldo disponível: ${bal1}`);
+  const results = await Promise.all([runTx('ALPHA', 7), runTx('BETA', 7)]);
+  const successful = results.filter((r) => r.success);
+  const failed = results.filter((r) => !r.success);
 
-  if (bal1 >= 7) {
-    await client1.query(
-      `UPDATE inventory_balances SET quantity = quantity - 7, updated_at = NOW() WHERE product_sku = $1 AND warehouse_code = 'WH-BR-LOCAL-JPA'`,
-      [testSku]
-    );
-    await client1.query('COMMIT');
-    tx1Success = true;
-    console.log('✓ Transação 1 completada com sucesso (-7 un).');
+  console.log(`Resultados do teste concorrente Promise.all: ${successful.length} aprovada(s), ${failed.length} rejeitada(s).`);
+  if (successful.length === 1 && failed.length === 1) {
+    console.log(`✓ TESTE DE CONCORRÊNCIA SIMULTÂNEA APROVADO! Exatamente 1 transação concluiu e a outra falhou de forma segura.`);
   } else {
-    await client1.query('ROLLBACK');
-  }
-
-  // Client 2 agora tenta adquirir lock
-  const lock2 = await client2.query(
-    `SELECT quantity FROM inventory_balances WHERE product_sku = $1 AND warehouse_code = 'WH-BR-LOCAL-JPA' FOR UPDATE`,
-    [testSku]
-  );
-  const bal2 = lock2.rows[0].quantity;
-  console.log(`Transação 2 obteve lock FOR UPDATE. Saldo disponível agora: ${bal2}`);
-
-  if (bal2 >= 7) {
-    await client2.query(
-      `UPDATE inventory_balances SET quantity = quantity - 7, updated_at = NOW() WHERE product_sku = $1 AND warehouse_code = 'WH-BR-LOCAL-JPA'`,
-      [testSku]
-    );
-    await client2.query('COMMIT');
-    tx2Success = true;
-  } else {
-    await client2.query('ROLLBACK');
-    tx2Error = `Estoque insuficiente: disponível ${bal2}, solicitado 7`;
-    console.log(`✓ Transação 2 corretamente rejeitada (Fail-Closed): ${tx2Error}`);
-  }
-
-  await client1.end();
-  await client2.end();
-
-  if (tx1Success && !tx2Success) {
-    console.log('✓ TESTE DE CONCORRÊNCIA E ROW-LOCKING: APROVADO! Zero concorrência destrutiva.');
-  } else {
-    throw new Error('Falha no isolamento de concorrência.');
+    throw new Error(`Falha no isolamento de concorrência: ${JSON.stringify(results)}`);
   }
 
   console.log('\n[5/6] TESTE DE DURABILIDADE APÓS REINÍCIO (PERSISTÊNCIA RELACIONAL)');
