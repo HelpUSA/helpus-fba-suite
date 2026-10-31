@@ -16,9 +16,15 @@ function getBaseEndpoint(u) {
   }
 }
 
-function getBackupKey() {
+function getBackupKey(explicitKey) {
+  if (explicitKey) {
+    return explicitKey;
+  }
   if (process.env.BACKUP_ENCRYPTION_KEY) {
     return process.env.BACKUP_ENCRYPTION_KEY;
+  }
+  if (process.env.STRICT_CLEAN_ROOM === 'true') {
+    throw new Error("🛑 BLOQUEIO CLEAN-ROOM: Nenhuma chave foi injetada via BACKUP_ENCRYPTION_KEY ou explicitKey. Acesso a chaves locais em disco está proibido.");
   }
   const keyFile = path.join(__dirname, '..', 'backups', '.backup_secret_key');
   if (fs.existsSync(keyFile)) {
@@ -27,7 +33,7 @@ function getBackupKey() {
   throw new Error("Chave de backup não encontrada (defina BACKUP_ENCRYPTION_KEY ou mantenha backups/.backup_secret_key).");
 }
 
-function decryptSnapshot(encryptedEnvelopePath) {
+function decryptSnapshot(encryptedEnvelopePath, explicitKey) {
   const raw = fs.readFileSync(encryptedEnvelopePath, 'utf-8');
   const envelope = JSON.parse(raw);
 
@@ -36,7 +42,7 @@ function decryptSnapshot(encryptedEnvelopePath) {
     throw new Error("🛑 BLOQUEIO DE SEGURANÇA: Restauração rejeitada. O arquivo não é um snapshot criptografado AES-256-GCM válido.");
   }
 
-  const key = getBackupKey();
+  const key = getBackupKey(explicitKey);
   const salt = Buffer.from(envelope.salt, 'hex');
   const iv = Buffer.from(envelope.iv, 'hex');
   const authTag = Buffer.from(envelope.authTag, 'hex');
@@ -70,7 +76,7 @@ function computeTableChecksum(rows) {
   return hash.digest('hex');
 }
 
-async function restoreDatabase(snapshotFile, explicitTargetUrl, explicitProdIdentity) {
+async function restoreDatabase(snapshotFile, explicitTargetUrl, explicitProdIdentity, explicitKey) {
   const TARGET_DB_URL = explicitTargetUrl || process.env.TEST_DATABASE_URL || process.env.STAGING_DATABASE_URL;
   const PROD_IDENTITY = explicitProdIdentity || process.env.PROD_HOST_ENDPOINT || (process.env.DATABASE_URL ? getBaseEndpoint(process.env.DATABASE_URL) : '');
 
@@ -98,7 +104,7 @@ async function restoreDatabase(snapshotFile, explicitTargetUrl, explicitProdIden
     }
   }
 
-  const snapshot = decryptSnapshot(snapshotFile);
+  const snapshot = decryptSnapshot(snapshotFile, explicitKey);
 
   console.log('===============================================================');
   console.log(`RESTAURAÇÃO COMPLETA & VERIFICAÇÃO DE CHECKSUM EM STAGING (${snapshot.timestamp})`);
