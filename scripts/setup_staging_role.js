@@ -25,8 +25,15 @@ function loadEnv(envPath) {
 }
 
 async function setupStagingRole() {
+  // Order 031 Point 3: Deixar setup_staging_role.js restrito a operação administrativa manual autorizada
+  if (process.env.ALLOW_STAGING_ROLE_ADMIN !== 'true') {
+    console.error('🛑 BLOQUEIO DE SEGURANÇA: setup_staging_role.js está restrito a execução manual administrativa autorizada.');
+    console.error('Para executar de forma controlada, execute com ALLOW_STAGING_ROLE_ADMIN=true.');
+    process.exit(1);
+  }
+
   console.log('===============================================================');
-  console.log('PROVISIONAMENTO DE CREDENCIAL EXCLUSIVA DE STAGING (ORDEM 030 G1)');
+  console.log('PROVISIONAMENTO DE CREDENCIAL EXCLUSIVA DE STAGING (ORDEM 030/031)');
   console.log('===============================================================');
 
   const envPath = path.join(__dirname, '..', '.env.local');

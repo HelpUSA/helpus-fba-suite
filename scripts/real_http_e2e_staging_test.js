@@ -15,7 +15,7 @@ async function testRealHttpNetworkE2E() {
   const baseUrl = `http://127.0.0.1:${serverPort}/api/inventory`;
   const authToken = process.env.HELPUS_API_SECRET;
   const stagingUrl = process.env.DATABASE_URL;
-  const prodUrl = process.env.PROD_DATABASE_URL;
+  const prodIdentity = process.env.PROD_HOST_ENDPOINT;
 
   if (!authToken || authToken.length < 32) {
     throw new Error('🛑 BLOQUEIO: HELPUS_API_SECRET dinâmico ausente ou insuficiente.');
@@ -25,19 +25,20 @@ async function testRealHttpNetworkE2E() {
     throw new Error(`🛑 BLOQUEIO DE ISOLAMENTO: DATABASE_URL deve conter staging_operator e /helpus_staging.`);
   }
 
-  if (!prodUrl) {
-    throw new Error('🛑 BLOQUEIO: PROD_DATABASE_URL obrigatório para verificação cruzada de exclusão em restoreDatabase.');
+  if (!prodIdentity) {
+    throw new Error('🛑 BLOQUEIO: PROD_HOST_ENDPOINT (identidade não-secreta de produção) é obrigatório.');
   }
 
   console.log(`✓ Servidor Alvo: http://127.0.0.1:${serverPort} (Loopback Estrito)`);
   console.log(`✓ Conexão DB do Servidor: staging_operator @ helpus_staging`);
+  console.log(`✓ Identidade de Produção para Exclusão: ${prodIdentity}`);
 
   const backupDir = path.join(__dirname, '..', 'backups');
   const snapshotPath = path.join(backupDir, 'latest_backup.enc.json');
 
   // Step 0: Initial Canonical Baseline
   console.log('\n[0/6] RESTAURAÇÃO BASELINE INICIAL EM STAGING...');
-  await restoreDatabase(snapshotPath, stagingUrl, prodUrl);
+  await restoreDatabase(snapshotPath, stagingUrl, prodIdentity);
 
   try {
     // 1. GET /api/inventory ANÔNIMO VIA REDE HTTP
@@ -134,19 +135,25 @@ async function testRealHttpNetworkE2E() {
 
     console.log(`✓ Status HTTP Real: ${secondPostRes.status} (Esperado: 200)`);
     console.log(`✓ ok na 2ª tentativa: ${secondPostData.ok} (Esperado: true)`);
-    console.log(`✓ totalUnits movidas na 2ª tentativa: ${secondPostData.totalUnits || 0} (Esperado: 0)`);
+    console.log(`✓ totalUnits movidas na 2ª tentativa: ${secondPostData.totalUnits} (Esperado: 0)`);
+    console.log(`✓ movedCount SKUs na 2ª tentativa: ${secondPostData.movedCount} (Esperado: 0)`);
     console.log(`✓ Mensagem de idempotência: "${secondPostData.message}"`);
 
-    // Strict validation of status and counts on the second request
-    if (secondPostRes.status !== 200 || secondPostData.ok !== true || (secondPostData.totalUnits && secondPostData.totalUnits > 0)) {
-      throw new Error(`Falha na validação de status ou contagem na segunda requisição: status=${secondPostRes.status}, ok=${secondPostData.ok}, units=${secondPostData.totalUnits}`);
+    // Order 031 Ponto 1: asserção estrita exigindo totalUnits === 0 e movedCount === 0; rejeitar null, undefined e valores negativos
+    if (
+      secondPostRes.status !== 200 ||
+      secondPostData.ok !== true ||
+      secondPostData.totalUnits !== 0 ||
+      secondPostData.movedCount !== 0
+    ) {
+      throw new Error(`🛑 FALHA DE IDEMPOTÊNCIA: Segunda chamada não retornou exatamente 0 unidades e 0 SKUs! (status=${secondPostRes.status}, ok=${secondPostData.ok}, totalUnits=${secondPostData.totalUnits}, movedCount=${secondPostData.movedCount})`);
     }
 
   } finally {
     // 6. ROLLBACK SEGURO EM STAGING VIA RESTAURAÇÃO DE SNAPSHOT CANÔNICO
     // Executed unconditionally, guaranteeing clean baseline state even if assertions fail
     console.log('\n[6/6] BLOCO FINALLY: ROLLBACK OBRIGATÓRIO EM STAGING & AUDITORIA DE CHECKSUM');
-    await restoreDatabase(snapshotPath, stagingUrl, prodUrl);
+    await restoreDatabase(snapshotPath, stagingUrl, prodIdentity);
     console.log('✓ Staging restaurado ao estado canônico original com integridade de checksums 100% auditada.');
   }
 

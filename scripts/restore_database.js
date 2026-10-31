@@ -70,15 +70,15 @@ function computeTableChecksum(rows) {
   return hash.digest('hex');
 }
 
-async function restoreDatabase(snapshotFile, explicitTargetUrl, explicitProdUrl) {
+async function restoreDatabase(snapshotFile, explicitTargetUrl, explicitProdIdentity) {
   const TARGET_DB_URL = explicitTargetUrl || process.env.TEST_DATABASE_URL || process.env.STAGING_DATABASE_URL;
-  const PROD_DB_URL = explicitProdUrl || process.env.DATABASE_URL;
+  const PROD_IDENTITY = explicitProdIdentity || process.env.PROD_HOST_ENDPOINT || (process.env.DATABASE_URL ? getBaseEndpoint(process.env.DATABASE_URL) : '');
 
   if (!TARGET_DB_URL) {
     throw new Error('🛑 ERRO: TEST_DATABASE_URL ou STAGING_DATABASE_URL é obrigatória para restauração em staging.');
   }
 
-  // Order 028: Validar exclusão de endpoint de produção em TODOS os caminhos (inclusive explicitTargetUrl)
+  // Order 028/031: Validar exclusão de endpoint de produção em TODOS os caminhos usando identidade não-secreta
   let targetDbName = '';
   try {
     targetDbName = new URL(TARGET_DB_URL).pathname.toLowerCase().replace(/^\//, '');
@@ -90,8 +90,12 @@ async function restoreDatabase(snapshotFile, explicitTargetUrl, explicitProdUrl)
     throw new Error('🛑 BLOQUEIO DE SEGURANÇA: Tentativa de restauração direcionada à base de PRODUÇÃO (/neondb)!');
   }
 
-  if (PROD_DB_URL && getBaseEndpoint(TARGET_DB_URL) === getBaseEndpoint(PROD_DB_URL)) {
-    throw new Error('🛑 BLOQUEIO DE SEGURANÇA: TARGET_DB_URL coincide com o endpoint de PRODUÇÃO!');
+  if (PROD_IDENTITY) {
+    const targetBase = getBaseEndpoint(TARGET_DB_URL);
+    const prodBase = getBaseEndpoint(PROD_IDENTITY);
+    if (targetBase === prodBase) {
+      throw new Error(`🛑 BLOQUEIO DE SEGURANÇA: TARGET_DB_URL (${targetBase}) coincide com a identidade de PRODUÇÃO (${prodBase})!`);
+    }
   }
 
   const snapshot = decryptSnapshot(snapshotFile);

@@ -122,7 +122,8 @@ async function main() {
     await waitForServer(`http://${host}:${serverPort}/api/inventory`);
     console.log(`✓ Servidor Next.js ONLINE e respondendo em http://${host}:${serverPort}!`);
 
-    // G2: Build test runner environment by strict allowlist
+    // G2: Build test runner environment by strict allowlist without any production secrets
+    const prodIdentity = `${parsed.hostname.toLowerCase().replace('-pooler', '')}/neondb`;
     console.log('\nDisparando suíte de testes de rede HTTP...');
     const testEnv = {
       PATH: process.env.PATH || '',
@@ -133,7 +134,7 @@ async function main() {
       STAGING_SERVER_PORT: String(serverPort),
       DATABASE_URL: stagingOpUrl,
       HELPUS_API_SECRET: dynamicSecret,
-      PROD_DATABASE_URL: prodUrl, // supplied strictly for restoreDatabase exclusion check
+      PROD_HOST_ENDPOINT: prodIdentity, // non-secret production identity strictly for exclusion check
       NODE_ENV: 'test',
     };
 
