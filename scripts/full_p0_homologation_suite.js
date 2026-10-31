@@ -1,6 +1,7 @@
 const { Client } = require('pg');
 
-const DATABASE_URL = 'postgres://postgres:@dmLocal1993@localhost:5432/helpus_fba_suite';
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) throw new Error('DATABASE_URL is required for PostgreSQL homologation.');
 
 async function runHomologationSuite() {
   console.log('===============================================================');
