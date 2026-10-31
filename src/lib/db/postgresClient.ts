@@ -64,6 +64,13 @@ export function getPostgresPool(): Pool {
   return globalPool;
 }
 
+export async function closePostgresPool(): Promise<void> {
+  if (globalPool) {
+    await globalPool.end();
+    globalPool = null;
+  }
+}
+
 /**
  * Executes a callback within a managed PostgreSQL transaction with ACID guarantees.
  * If any query fails, ROLLBACK is issued automatically and the error is re-thrown.
