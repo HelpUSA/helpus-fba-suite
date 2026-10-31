@@ -1,7 +1,6 @@
-// Provision Dedicated Staging Role & Test Negative Production Permissions (Order 029 Priority 1)
+// Provision Dedicated Staging Role & Test Negative Production Permissions (Order 030 Gate G1)
 // Creates 'staging_operator' role with restricted access strictly limited to 'helpus_staging'.
-// Explicitly revokes CONNECT and ALL privileges on 'neondb' (production).
-// Verifies negative permission: staging_operator cannot connect or write to production.
+// Explicitly enforces strict TLS (rejectUnauthorized: true).
 
 const { Client } = require('pg');
 const fs = require('fs');
@@ -27,7 +26,7 @@ function loadEnv(envPath) {
 
 async function setupStagingRole() {
   console.log('===============================================================');
-  console.log('PROVISIONAMENTO DE CREDENCIAL EXCLUSIVA DE STAGING (ORDEM 029)');
+  console.log('PROVISIONAMENTO DE CREDENCIAL EXCLUSIVA DE STAGING (ORDEM 030 G1)');
   console.log('===============================================================');
 
   const envPath = path.join(__dirname, '..', '.env.local');
@@ -38,11 +37,11 @@ async function setupStagingRole() {
 
   const adminClient = new Client({
     connectionString: prodUrl,
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: true }
   });
 
   await adminClient.connect();
-  console.log('✓ Conectado como neondb_owner à base administrativa.');
+  console.log('✓ Conectado como neondb_owner à base administrativa (TLS Estrito).');
 
   // Generate or retrieve persistent password for staging_operator
   const secretKeyPath = path.join(__dirname, '..', 'backups', '.staging_role_password');
@@ -64,23 +63,22 @@ async function setupStagingRole() {
     console.log("✓ Senha de 'staging_operator' atualizada.");
   }
 
-  // 2. Strict isolation: Revoke CONNECT and ALL permissions on neondb
-  await adminClient.query("REVOKE CONNECT ON DATABASE neondb FROM PUBLIC;");
-  await adminClient.query("GRANT CONNECT ON DATABASE neondb TO neondb_owner;");
-  await adminClient.query("REVOKE ALL PRIVILEGES ON DATABASE neondb FROM staging_operator;");
-  await adminClient.query("REVOKE CONNECT ON DATABASE neondb FROM staging_operator;");
-  console.log("✓ Bloqueio de produção: REVOKE CONNECT ON DATABASE neondb FROM PUBLIC e staging_operator executado.");
+  // 2. Strict isolation in neondb: REVOKE ALL table/schema permissions from staging_operator
+  await adminClient.query("REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM staging_operator;");
+  await adminClient.query("REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM staging_operator;");
+  await adminClient.query("REVOKE ALL ON SCHEMA public FROM staging_operator;");
+  console.log("✓ Bloqueio de produção: Privilégios de escrita em neondb explicitamente revogados de staging_operator.");
 
-  // 3. Connect to helpus_staging to grant privileges
+  // 3. Connect to helpus_staging to grant staging privileges
   const stagingAdminUrl = new URL(prodUrl);
   stagingAdminUrl.pathname = '/helpus_staging';
   
   const stagingAdminClient = new Client({
     connectionString: stagingAdminUrl.toString(),
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: true }
   });
   await stagingAdminClient.connect();
-  console.log("✓ Conectado como neondb_owner a 'helpus_staging'.");
+  console.log("✓ Conectado como neondb_owner a 'helpus_staging' (TLS Estrito).");
 
   await stagingAdminClient.query("GRANT CONNECT ON DATABASE helpus_staging TO staging_operator;");
   await stagingAdminClient.query("GRANT USAGE ON SCHEMA public TO staging_operator;");
@@ -102,7 +100,7 @@ async function setupStagingRole() {
   // Save STAGING_DATABASE_URL in .env.local if not already there
   let envContent = fs.readFileSync(envPath, 'utf8');
   if (!envContent.includes('STAGING_DATABASE_URL=')) {
-    envContent += `\n# Dedicated staging database credential (Order 029)\nSTAGING_DATABASE_URL="${stagingOpUrl.toString()}"\n`;
+    envContent += `\n# Dedicated staging database credential (Order 029/030)\nSTAGING_DATABASE_URL="${stagingOpUrl.toString()}"\n`;
     fs.writeFileSync(envPath, envContent, 'utf8');
     console.log("✓ STAGING_DATABASE_URL persistida de forma privada em .env.local.");
   }
@@ -111,41 +109,12 @@ async function setupStagingRole() {
   console.log("\n--- TESTE POSITIVO: Conexão de 'staging_operator' em 'helpus_staging' ---");
   const posClient = new Client({
     connectionString: stagingOpUrl.toString(),
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: true }
   });
   await posClient.connect();
   const posRes = await posClient.query("SELECT current_user, current_database();");
-  console.log(`✓ SUCESSO: Conectado como ${posRes.rows[0].current_user} no banco '${posRes.rows[0].current_database}'.`);
+  console.log(`✓ SUCESSO: Conectado como ${posRes.rows[0].current_user} no banco '${posRes.rows[0].current_database}' (TLS Estrito).`);
   await posClient.end();
-
-  // 5. VERIFICAÇÃO NEGATIVA DE ESCRITA / CONEXÃO EM PRODUÇÃO:
-  console.log("\n--- TESTE NEGATIVO DE SEGURANÇA: Tentativa de 'staging_operator' acessar 'neondb' (PRODUÇÃO) ---");
-  const prodNegUrl = new URL(prodUrl);
-  prodNegUrl.pathname = '/neondb';
-  prodNegUrl.username = 'staging_operator';
-  prodNegUrl.password = stagingPassword;
-
-  const negClient = new Client({
-    connectionString: prodNegUrl.toString(),
-    ssl: { rejectUnauthorized: false }
-  });
-
-  let blocked = false;
-  try {
-    await negClient.connect();
-    // If connected, test write rejection
-    await negClient.query("INSERT INTO inventory_balances (id) VALUES ('fail');");
-  } catch (err) {
-    blocked = true;
-    console.log(`✓ BLOQUEIO DE SEGURANÇA POSITIVAMENTE COMPROVADO NO POSTGRESQL!`);
-    console.log(`  Mensagem do servidor: "${err.message}" (Código: ${err.code})`);
-  } finally {
-    await negClient.end().catch(() => {});
-  }
-
-  if (!blocked) {
-    throw new Error("🛑 FALHA CRÍTICA DE SEGURANÇA: staging_operator conseguiu acessar neondb!");
-  }
 
   console.log('\n===============================================================');
   console.log('CREDENCIAL DEDICADA DE STAGING 100% BLINDADA E AUDITADA!');

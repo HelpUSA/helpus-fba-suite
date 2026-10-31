@@ -1,9 +1,10 @@
-// Comprehensive Negative Security & Cryptographic Integrity Test (Order 029 Priority 4)
+// Comprehensive Negative Security & Cryptographic Integrity Test (Order 030 Gates G1 & G3)
 // Proves:
 // 1. Rejection of corrupted snapshot data via SHA-256 table checksum audit before COMMIT.
-// 2. Rejection of tampered ciphertext (envelope.data) via AES-256-GCM authTag failure.
-// 3. Rejection of tampered authentication tag (envelope.authTag) via AES-256-GCM.
-// 4. Strict state equivalence in staging: database state before and after aborted attempts is 100% identical.
+// 2. Immediate post-abortion checksum audit proving staging state was untouched (NO restore needed).
+// 3. Rejection of tampered ciphertext (envelope.data) via AES-256-GCM authTag failure.
+// 4. Rejection of tampered authentication tag (envelope.authTag) via AES-256-GCM.
+// 5. Strict TLS (rejectUnauthorized: true) across all connections.
 
 const fs = require('fs');
 const path = require('path');
@@ -12,7 +13,7 @@ const { Client } = require('pg');
 const { decryptSnapshot, restoreDatabase, getBackupKey, computeTableChecksum } = require('./restore_database');
 
 async function getStagingChecksums(stagingUrl) {
-  const client = new Client({ connectionString: stagingUrl, ssl: { rejectUnauthorized: false } });
+  const client = new Client({ connectionString: stagingUrl, ssl: { rejectUnauthorized: true } });
   await client.connect();
   const tables = ['warehouses', 'products', 'inventory_balances', 'invoices', 'invoice_items', 'stock_movements', 'sale_orders', 'returns'];
   const checksums = {};
@@ -27,9 +28,19 @@ async function getStagingChecksums(stagingUrl) {
   return checksums;
 }
 
+function assertStateMatches(currentState, baselineState, stageName) {
+  for (const [tbl, initial] of Object.entries(baselineState)) {
+    const current = currentState[tbl];
+    if (initial.count !== current.count || initial.checksum !== current.checksum) {
+      throw new Error(`🛑 FALHA DE ISOLAMENTO [${stageName}]: Tabela '${tbl}' foi alterada durante tentativa abortada! (Contagem: ${initial.count} -> ${current.count}, Checksum match: ${initial.checksum === current.checksum})`);
+    }
+  }
+  console.log(`✓ Verificação imediata pós-aborto [${stageName}]: 8/8 tabelas 100% IDÊNTICAS à baseline canônica.`);
+}
+
 async function runComprehensiveNegativeTests() {
   console.log('===============================================================');
-  console.log('AUDITORIA DE TESTES NEGATIVOS CRIPTOGRÁFICOS E TRANSACIONAIS (ORDEM 029)');
+  console.log('AUDITORIA DE TESTES NEGATIVOS CRIPTOGRÁFICOS E TRANSACIONAIS (ORDEM 030)');
   console.log('===============================================================');
 
   const stagingUrl = process.env.STAGING_DATABASE_URL || process.env.TEST_DATABASE_URL || (() => {
@@ -47,10 +58,11 @@ async function runComprehensiveNegativeTests() {
     throw new Error('Snapshot latest_backup.enc.json não encontrado para teste negativo.');
   }
 
-  // Baseline: capture initial staging state
-  console.log('\n[0/4] Capturando estado inicial (baseline) de staging...');
+  // 0. Ensure clean baseline and capture initial checksums
+  console.log('\n[0/4] Restauração baseline e captura de checksums iniciais...');
+  await restoreDatabase(validSnapshotPath, stagingUrl, prodUrl);
   const baselineState = await getStagingChecksums(stagingUrl);
-  console.log(`✓ Baseline staging capturado: ${Object.keys(baselineState).length} tabelas conferidas.`);
+  console.log(`✓ Baseline staging capturado com TLS estrito: ${Object.keys(baselineState).length} tabelas conferidas.`);
 
   // TEST 1: Tampered Data inside valid AES-256-GCM envelope
   console.log('\n[1/4] TESTE NEGATIVO 1: Adulteração de dados internos (Checksum Mismatch)...');
@@ -93,6 +105,10 @@ async function runComprehensiveNegativeTests() {
   }
   if (!test1Blocked) throw new Error('Falha no Teste 1: Adulteração de dados não foi interceptada!');
 
+  // AUDITORIA IMEDIATA PÓS-ABORTO (SEM RESTORE PREVENTIVO)
+  const stateAfterTest1 = await getStagingChecksums(stagingUrl);
+  assertStateMatches(stateAfterTest1, baselineState, 'Pós-Teste 1 Dados Adulterados');
+
   // TEST 2: Tampered Ciphertext (envelope.data bit flip)
   console.log('\n[2/4] TESTE NEGATIVO 2: Adulteração de Ciphertext (Corrupção de bits cifrados)...');
   const tamperedCipherFile = path.join(backupDir, 'tampered_ciphertext_test.enc.json');
@@ -113,6 +129,10 @@ async function runComprehensiveNegativeTests() {
     if (fs.existsSync(tamperedCipherFile)) fs.unlinkSync(tamperedCipherFile);
   }
   if (!test2Blocked) throw new Error('Falha no Teste 2: Ciphertext adulterado não causou erro criptográfico!');
+
+  // AUDITORIA IMEDIATA PÓS-ABORTO (SEM RESTORE PREVENTIVO)
+  const stateAfterTest2 = await getStagingChecksums(stagingUrl);
+  assertStateMatches(stateAfterTest2, baselineState, 'Pós-Teste 2 Ciphertext Adulterado');
 
   // TEST 3: Tampered AuthTag (envelope.authTag bit flip)
   console.log('\n[3/4] TESTE NEGATIVO 3: Adulteração de AuthTag (Violação de Autenticidade)...');
@@ -135,32 +155,22 @@ async function runComprehensiveNegativeTests() {
   }
   if (!test3Blocked) throw new Error('Falha no Teste 3: AuthTag adulterada não causou erro criptográfico!');
 
-  // Ensure staging is clean baseline
-  await restoreDatabase(validSnapshotPath, stagingUrl, prodUrl);
+  // AUDITORIA IMEDIATA PÓS-ABORTO (SEM RESTORE PREVENTIVO)
+  const stateAfterTest3 = await getStagingChecksums(stagingUrl);
+  assertStateMatches(stateAfterTest3, baselineState, 'Pós-Teste 3 AuthTag Adulterada');
 
-  // TEST 4: State Equivalence Verification
-  console.log('\n[4/4] TESTE DE EQUIVALÊNCIA ESTRITA DO ESTADO DE STAGING...');
-  const postTestState = await getStagingChecksums(stagingUrl);
-
-  console.log('Auditoria de Equivalência (Antes vs Depois das Tentativas de Adulteração):');
-  let allMatch = true;
+  // TEST 4: Final Summary Audit
+  console.log('\n[4/4] AUDITORIA DE EQUIVALÊNCIA GLOBAL DO ESTADO DE STAGING...');
+  console.log('Auditoria de Equivalência (Baseline vs Pós-Testes Negativos Imediatos):');
   for (const [tbl, initial] of Object.entries(baselineState)) {
-    const post = postTestState[tbl];
-    const countMatch = initial.count === post.count;
-    const checksumMatch = initial.checksum === post.checksum;
-    console.log(`  - ${tbl.padEnd(20)}: Contagem (${initial.count} -> ${post.count}) | Checksum Match: ${checksumMatch}`);
-    if (!countMatch || !checksumMatch) {
-      allMatch = false;
-    }
-  }
-
-  if (!allMatch) {
-    throw new Error('🛑 FALHA DE EQUIVALÊNCIA: O estado de staging sofreu mutação indevida durante testes negativos!');
+    const post = stateAfterTest3[tbl];
+    console.log(`  - ${tbl.padEnd(20)}: Contagem (${initial.count} -> ${post.count}) | Checksum Match: ${initial.checksum === post.checksum}`);
   }
 
   console.log('\n===============================================================');
-  console.log('✓ AUDITORIA NEGATIVA COMPLETA: 100% DAS ADULTERAÇÕES DETECTADAS');
-  console.log('  E O ESTADO DE STAGING PERMANECEU ESTRITAMENTE INALTERADO!');
+  console.log('✓ AUDITORIA NEGATIVA G1 & G3 CONCLUÍDA COM 100% DE SUCESSO:');
+  console.log('  Todas as adulterações foram rejeitadas e o banco manteve integridade');
+  console.log('  imediata pós-aborto SEM necessidade de restauração emergencial!');
   console.log('===============================================================');
 }
 

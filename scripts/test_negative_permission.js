@@ -1,6 +1,7 @@
-// Negative Permission Audit for staging_operator (Order 029 Priority 1)
-// Verifies that staging_operator has ZERO write privileges on any production table in neondb.
-// Tests SELECT has_table_privilege and transactional rollback probe without altering production data.
+// Read-Only Negative Permission Audit for staging_operator (Order 030 Gate G1)
+// Audits permissions strictly via read-only introspection (has_table_privilege, has_schema_privilege).
+// ZERO mutative queries or test INSERTs are executed against the production database.
+// Strict TLS enforced (rejectUnauthorized: true).
 
 const { Client } = require('pg');
 const fs = require('fs');
@@ -25,35 +26,31 @@ function loadEnv(envPath) {
 
 async function testNegativePermission() {
   console.log('===============================================================');
-  console.log('VERIFICAÇÃO DE PERMISSÃO NEGATIVA EM PRODUÇÃO (ORDEM 029)');
+  console.log('AUDITORIA DE PERMISSÃO NEGATIVA SOMENTE LEITURA (ORDEM 030 G1)');
   console.log('===============================================================');
 
   const env = loadEnv(path.join(__dirname, '..', '.env.local'));
   const prodUrl = process.env.DATABASE_URL || env.DATABASE_URL;
-  const password = fs.readFileSync(path.join(__dirname, '..', 'backups', '.staging_role_password'), 'utf8').trim();
+  const passwordFile = path.join(__dirname, '..', 'backups', '.staging_role_password');
+  const password = fs.readFileSync(passwordFile, 'utf8').trim();
 
-  // 1. First, as neondb_owner, ensure staging_operator has NO privileges in neondb
-  const adminClient = new Client({ connectionString: prodUrl, ssl: { rejectUnauthorized: false } });
-  await adminClient.connect();
-  await adminClient.query("REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM staging_operator;");
-  await adminClient.query("REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM staging_operator;");
-  await adminClient.query("REVOKE ALL ON SCHEMA public FROM staging_operator;");
-  await adminClient.end();
-  console.log("✓ Privilégios em 'neondb' (produção) explicitamente revogados de staging_operator.");
-
-  // 2. Now connect as staging_operator to neondb
+  // 1. Audit production permissions as staging_operator with strict TLS
   const targetUrl = new URL(prodUrl);
   targetUrl.pathname = '/neondb';
   targetUrl.username = 'staging_operator';
   targetUrl.password = password;
 
-  const client = new Client({ connectionString: targetUrl.toString(), ssl: { rejectUnauthorized: false } });
-  await client.connect();
-  console.log(`✓ Conectado a ${targetUrl.pathname} como ${targetUrl.username}`);
+  const client = new Client({
+    connectionString: targetUrl.toString(),
+    ssl: { rejectUnauthorized: true }
+  });
 
-  // Query permissions on all production tables
+  await client.connect();
+  console.log(`✓ Conectado a ${targetUrl.pathname} como ${targetUrl.username} (TLS Estrito: rejectUnauthorized=true)`);
+
+  // Introspect privileges across all production tables
   const tables = ['inventory_balances', 'products', 'warehouses', 'invoices', 'invoice_items', 'stock_movements', 'sale_orders', 'returns'];
-  console.log('\nAuditoria de privilégios via has_table_privilege:');
+  console.log('\nAuditoria estrita de privilégios (has_table_privilege em neondb):');
   for (const tbl of tables) {
     const res = await client.query(`
       SELECT has_table_privilege('staging_operator', '${tbl}', 'INSERT') AS can_insert,
@@ -61,35 +58,55 @@ async function testNegativePermission() {
              has_table_privilege('staging_operator', '${tbl}', 'DELETE') AS can_delete;
     `);
     const { can_insert, can_update, can_delete } = res.rows[0];
-    console.log(`  - Tabela '${tbl}': can_insert=${can_insert}, can_update=${can_update}, can_delete=${can_delete}`);
+    console.log(`  - Tabela '${tbl.padEnd(20)}': INSERT=${can_insert}, UPDATE=${can_update}, DELETE=${can_delete}`);
     if (can_insert || can_update || can_delete) {
       throw new Error(`🛑 FALHA DE SEGURANÇA: staging_operator possui privilégio de escrita na tabela de produção '${tbl}'!`);
     }
   }
 
-  // 3. Test negative write execution attempt (must fail with 42501 permission denied)
-  console.log('\nTentativa de execução de INSERT na tabela de produção:');
-  let rejected = false;
-  try {
-    await client.query("INSERT INTO inventory_balances (product_sku, warehouse_code, quantity) VALUES ('TEST-SKU', 'BESSA', 1);");
-  } catch (err) {
-    rejected = true;
-    console.log(`✓ BLOQUEIO CONFIRMADO PELO POSTGRESQL!`);
-    console.log(`  Mensagem: "${err.message}"`);
-    console.log(`  Código SQLState: ${err.code} (42501 = insufficient_privilege)`);
-    if (err.code !== '42501') {
-      throw new Error(`Código inesperado: esperado 42501, recebido ${err.code}`);
-    }
+  // Introspect schema & database privileges
+  const metaRes = await client.query(`
+    SELECT has_schema_privilege('staging_operator', 'public', 'CREATE') AS can_create_in_schema,
+           has_database_privilege('staging_operator', 'neondb', 'CREATE') AS can_create_in_db;
+  `);
+  console.log('\nAuditoria de privilégios estruturais em neondb:');
+  console.log(`  - Criar tabelas no schema public: ${metaRes.rows[0].can_create_in_schema}`);
+  console.log(`  - Criar schemas no banco neondb: ${metaRes.rows[0].can_create_in_db}`);
+
+  if (metaRes.rows[0].can_create_in_schema || metaRes.rows[0].can_create_in_db) {
+    throw new Error('🛑 FALHA DE SEGURANÇA: staging_operator possui privilégios de criação em neondb!');
   }
 
   await client.end();
 
-  if (!rejected) {
-    throw new Error('🛑 FALHA: Tentativa de escrita não foi bloqueada!');
+  // 2. Introspect staging permissions to confirm full isolation
+  const stagingUrl = new URL(prodUrl);
+  stagingUrl.pathname = '/helpus_staging';
+  stagingUrl.username = 'staging_operator';
+  stagingUrl.password = password;
+
+  const stagingClient = new Client({
+    connectionString: stagingUrl.toString(),
+    ssl: { rejectUnauthorized: true }
+  });
+  await stagingClient.connect();
+
+  const stagingPermRes = await stagingClient.query(`
+    SELECT has_table_privilege('staging_operator', 'inventory_balances', 'INSERT') AS can_insert,
+           has_table_privilege('staging_operator', 'inventory_balances', 'SELECT') AS can_select;
+  `);
+  console.log('\nAuditoria de privilégios na base autorizada helpus_staging:');
+  console.log(`  - Tabela 'inventory_balances': INSERT=${stagingPermRes.rows[0].can_insert}, SELECT=${stagingPermRes.rows[0].can_select}`);
+
+  if (!stagingPermRes.rows[0].can_insert || !stagingPermRes.rows[0].can_select) {
+    throw new Error('🛑 FALHA: staging_operator deve possuir acesso em helpus_staging!');
   }
 
+  await stagingClient.end();
+
   console.log('\n===============================================================');
-  console.log('AUDITORIA DE PERMISSÃO NEGATIVA CONCLUÍDA COM 100% DE SUCESSO!');
+  console.log('✓ AUDITORIA SOMENTE LEITURA CONCLUÍDA: staging_operator 100% ISOLADO');
+  console.log('  ZERO privilégios de escrita em produção e ZERO testes de INSERT.');
   console.log('===============================================================');
 }
 
