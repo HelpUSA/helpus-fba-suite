@@ -337,6 +337,9 @@ export function saveErpState(state: ErpDatabaseState): void {
     fs.writeFileSync(DB_FILE_PATH, JSON.stringify(state, null, 2), 'utf-8');
   } catch (error) {
     console.error('Error saving database file:', error);
+    // Never report an inventory, invoice, or order mutation as successful
+    // when the backing store did not persist the updated state.
+    throw error;
   }
 }
 
