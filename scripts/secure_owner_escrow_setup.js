@@ -60,6 +60,22 @@ function verifyPrivateRepoSecurity(repoSlug = 'HelpUSA/helpus-private-artifacts'
   }
 }
 
+function assertPrivateRemoteAndCleanIndex(repoDir) {
+  const remote = execSync('git remote get-url origin', { cwd: repoDir, encoding: 'utf8', stdio: ['pipe','pipe','pipe'] }).trim();
+  const authorized = /^(?:https:\/\/github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/|git:\/\/github\.com\/)HelpUSA\/helpus-private-artifacts(?:\.git)?\/?$/i;
+  if (!authorized.test(remote)) {
+    throw new Error('ABORT: Git origin não aponta exatamente para HelpUSA/helpus-private-artifacts.');
+  }
+  const branch = execSync('git branch --show-current', { cwd: repoDir, encoding: 'utf8', stdio: ['pipe','pipe','pipe'] }).trim();
+  if (branch !== 'main') {
+    throw new Error('ABORT: workspace privado precisa estar na branch main.');
+  }
+  const staged = execSync('git diff --cached --name-only', { cwd: repoDir, encoding: 'utf8', stdio: ['pipe','pipe','pipe'] }).trim();
+  if (staged) {
+    throw new Error('ABORT: existem arquivos previamente staged no índice Git privado; não é seguro criar commit automático.');
+  }
+}
+
 async function getPassphraseInteractively() {
   console.log('\n====================================================================');
   console.log('CONFIGURAÇÃO INTERATIVA SEGURA DO ESCROW CRIPTOGRÁFICO (MASTER SUPERADMIN)');
@@ -93,6 +109,8 @@ async function runSyntheticOffhostVerification() {
   if (!fs.existsSync(privateRepoDir)) {
     throw new Error('Diretório local do repositório privado não encontrado: ' + privateRepoDir);
   }
+
+  assertPrivateRemoteAndCleanIndex(privateRepoDir);
 
   // Generate synthetic sample key and synthetic passphrase
   const syntheticKey = crypto.randomBytes(32).toString('hex');
@@ -151,6 +169,11 @@ async function runSecureOwnerSetup() {
     throw new Error('Chave original de backup não encontrada em backups/.backup_secret_key.');
   }
   const rawKey = fs.readFileSync(rawKeyPath, 'utf-8').trim();
+  const privateRepoDir = path.resolve(__dirname, '..', '..', 'helpus-private-artifacts');
+  if (!fs.existsSync(privateRepoDir)) {
+    throw new Error('Diretório local do repositório privado não encontrado: ' + privateRepoDir);
+  }
+  assertPrivateRemoteAndCleanIndex(privateRepoDir);
 
   // 1. Get Passphrase securely without echo
   const passphrase = await getPassphraseInteractively();
@@ -161,10 +184,6 @@ async function runSecureOwnerSetup() {
   console.log('✓ Pacote de Escrow gerado com sucesso (salt=16B, IV=12B, authTag=16B).');
 
   // 3. Define authorized private off-host destination
-  const privateRepoDir = path.resolve(__dirname, '..', '..', 'helpus-private-artifacts');
-  if (!fs.existsSync(privateRepoDir)) {
-    throw new Error('Diretório local do repositório privado não encontrado: ' + privateRepoDir);
-  }
   const destDir = path.join(privateRepoDir, 'escrow');
   if (!fs.existsSync(destDir)) {
     fs.mkdirSync(destDir, { recursive: true });
