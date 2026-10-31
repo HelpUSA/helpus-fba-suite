@@ -1,0 +1,57 @@
+const https = require('https');
+
+function request(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(url, options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => (data += chunk));
+      res.on('end', () => {
+        resolve({
+          status: res.statusCode,
+          headers: res.headers,
+          body: data,
+        });
+      });
+    });
+    req.on('error', reject);
+    if (options.body) req.write(options.body);
+    req.end();
+  });
+}
+
+async function probe() {
+  console.log('--- PROBING PRODUCTION WITH NEON POSTGRESQL (dpl_4fvf51xJ6KCCw7piFjZYykNFREYo) ---');
+
+  // 1. GET /api/inventory (now connected to Neon PostgreSQL!)
+  const invRes = await request('https://fba.helpusbr.com/api/inventory');
+  console.log('GET /api/inventory status:', invRes.status);
+  try {
+    const json = JSON.parse(invRes.body);
+    console.log('OK:', json.ok);
+    console.log('Storage Engine:', json.storageEngine);
+    console.log('Total Products Returned:', json.items ? json.items.length : 0);
+    if (json.items && json.items.length > 0) {
+      console.log('Sample Product SKUs:', json.items.map(i => i.sku));
+    }
+  } catch (e) {
+    console.log('Raw body preview:', invRes.body.slice(0, 300));
+  }
+
+  // 2. GET /api/finance/dre
+  const dreRes = await request('https://fba.helpusbr.com/api/finance/dre');
+  console.log('\nGET /api/finance/dre status:', dreRes.status);
+
+  // 3. GET /api/invoices (should remain 403 Forbidden for unauthorized requests)
+  const invoicesRes = await request('https://fba.helpusbr.com/api/invoices');
+  console.log('\nGET /api/invoices (unauthorized) status:', invoicesRes.status);
+
+  // 4. POST /api/inventory (unauthorized mutation should remain 403 Forbidden)
+  const postRes = await request('https://fba.helpusbr.com/api/inventory', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'batch_receive_braspress' }),
+  });
+  console.log('\nPOST /api/inventory (unauth mutation) status:', postRes.status);
+}
+
+probe().catch(console.error);

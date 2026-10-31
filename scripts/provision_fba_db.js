@@ -5,27 +5,15 @@ const fs = require('fs');
 const path = require('path');
 
 async function provisionDatabase() {
-  const rootClient = new Client({
-    connectionString: process.env.DATABASE_URL
-  });
-  await rootClient.connect();
-  
-  const checkDb = await rootClient.query("SELECT 1 FROM pg_database WHERE datname = 'helpus_fba_suite'");
-  if (checkDb.rows.length === 0) {
-    console.log("Creating database 'helpus_fba_suite'...");
-    await rootClient.query('CREATE DATABASE helpus_fba_suite');
-    console.log("Database 'helpus_fba_suite' created successfully.");
-  } else {
-    console.log("Database 'helpus_fba_suite' already exists.");
-  }
-  await rootClient.end();
+  const connectionString = process.env.DATABASE_URL;
+  const isSsl = !connectionString.includes('localhost') && !connectionString.includes('127.0.0.1');
 
-  // Now connect to helpus_fba_suite and apply schema.sql
   const fbaClient = new Client({
-    connectionString: process.env.DATABASE_URL
+    connectionString,
+    ssl: isSsl ? { rejectUnauthorized: false } : false
   });
   await fbaClient.connect();
-  console.log("Connected to 'helpus_fba_suite'. Applying schema.sql...");
+  console.log("Connected to PostgreSQL cloud database. Applying schema.sql...");
   
   const schemaPath = path.join(__dirname, '..', 'src', 'lib', 'db', 'schema.sql');
   const schemaSql = fs.readFileSync(schemaPath, 'utf-8');
