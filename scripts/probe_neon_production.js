@@ -20,7 +20,7 @@ function request(url, options = {}) {
 }
 
 async function probe() {
-  console.log('--- PROBING PRODUCTION WITH NEON POSTGRESQL (dpl_CapKx4w5nBDa7mtGQEYhdanZ85Y7) ---');
+  console.log('--- PROBING PRODUCTION WITH NEON POSTGRESQL (dpl_9uv7mkXXN7YaMbByxACqM1G6nUFC) ---');
 
   // 1. GET /api/inventory (connected to Neon PostgreSQL)
   const invRes = await request('https://fba.helpusbr.com/api/inventory');
@@ -28,10 +28,12 @@ async function probe() {
   try {
     const json = JSON.parse(invRes.body);
     console.log('OK:', json.ok);
-    console.log('Storage Engine:', json.storageEngine);
+    console.log('Authenticated:', json.authenticated);
+    console.log('Actor Role:', json.actorRole);
     console.log('Total Products Returned:', json.items ? json.items.length : 0);
     if (json.items && json.items.length > 0) {
       console.log('Sample Product SKUs:', json.items.map(i => i.sku));
+      console.log('Sample unitCost (should be undefined for anonymous):', json.items[0].unitCost);
     }
   } catch (e) {
     console.log('Raw body preview:', invRes.body.slice(0, 300));
