@@ -74,6 +74,19 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Until both batch-receive paths use authoritative PostgreSQL transactions,
+    // never allow these JSON-only mutations in serverless production.
+    if (
+      process.env.NODE_ENV === 'production' &&
+      (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) &&
+      (action === 'batch_receive_braspress' || action === 'batch_receive_fba')
+    ) {
+      return NextResponse.json(
+        { ok: false, message: 'Recebimento em lote temporariamente indisponível: operação requer persistência transacional PostgreSQL.' },
+        { status: 503 }
+      );
+    }
+
     if (action === 'batch_receive_braspress') {
       const result = batchReceiveBraspress();
       return NextResponse.json({
