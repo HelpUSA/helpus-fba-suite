@@ -61,6 +61,13 @@ async function auditProductionRolesReadOnly() {
   const tables = ['inventory_balances', 'products', 'warehouses', 'invoices', 'invoice_items', 'stock_movements', 'sale_orders', 'returns'];
   const loginRoles = rolesRes.rows.map(r => r.rolname);
 
+  // Fail closed if the audit cannot inspect the dedicated staging principal or production owner.
+  for (const requiredRole of ['staging_operator', 'neondb_owner']) {
+    if (!loginRoles.includes(requiredRole)) {
+      throw new Error(`INCOMPLETE_AUDIT: required role '${requiredRole}' is not present in pg_roles; cannot certify access isolation.`);
+    }
+  }
+
   console.log('\n--- 2. Matriz de Privilégios em Tabelas Produtivas (Somente Leitura) ---');
   const tableAudit = [];
 
@@ -96,7 +103,14 @@ async function auditProductionRolesReadOnly() {
 
   // Specific check for staging_operator in neondb
   const stagingOpRows = tableAudit.filter(r => r.role === 'staging_operator');
+  if (stagingOpRows.length !== tables.length) {
+    throw new Error(`INCOMPLETE_AUDIT: expected ${tables.length} staging_operator table assessments, found ${stagingOpRows.length}.`);
+  }
   const stagingHasWrite = stagingOpRows.some(r => r.can_insert || r.can_update || r.can_delete);
+  const stagingHasRead = stagingOpRows.some(r => r.can_select);
+  if (stagingHasRead) {
+    throw new Error('SECURITY_FAILURE: staging_operator retains SELECT access on production tables.');
+  }
   console.log(`\n✓ Validação de Bloqueio: staging_operator possui escrita em neondb? ${stagingHasWrite ? 'SIM (ALERTA)' : 'NÃO (TOTALMENTE ISOLADO)'}`);
 
   if (stagingHasWrite) {
