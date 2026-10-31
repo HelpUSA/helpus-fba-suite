@@ -1,6 +1,6 @@
 const { Client } = require('pg');
 
-// STRICT SAFETY GUARD (Order 024 Point 2):
+// STRICT SAFETY GUARD (Order 025 Points 1 & 2):
 // Mutative homologation suite MUST ONLY run against a verified isolated staging/test database.
 // Execution against production database is STRICTLY FORBIDDEN and fails immediately with exit code 1.
 
@@ -8,23 +8,34 @@ const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const PROD_DATABASE_URL = process.env.DATABASE_URL;
 
 if (!TEST_DATABASE_URL) {
-  console.error('\n🛑 [BLOCKED] HOMOLOGATION ERROR (Order 024):');
+  console.error('\n🛑 [BLOCKED] HOMOLOGATION ERROR (Order 025 Point 2):');
   console.error('TEST_DATABASE_URL is not set.');
   console.error('Mutative tests are strictly prohibited from running against production databases.');
   console.error('Please configure a distinct TEST_DATABASE_URL (e.g. Neon Staging branch or local test DB).');
   process.exit(1);
 }
 
-if (PROD_DATABASE_URL && TEST_DATABASE_URL.trim() === PROD_DATABASE_URL.trim()) {
-  console.error('\n🛑 [BLOCKED] HOMOLOGATION ERROR (Order 024):');
-  console.error('TEST_DATABASE_URL is identical to DATABASE_URL (Production).');
-  console.error('Running mutative tests on the production database is strictly prohibited.');
+function getEndpointIdentifier(urlStr) {
+  try {
+    const parsed = new URL(urlStr);
+    const host = parsed.hostname.toLowerCase().replace('-pooler', '');
+    const dbName = parsed.pathname.replace(/^\//, '').toLowerCase();
+    return `${host}/${dbName}`;
+  } catch (e) {
+    return urlStr.trim().toLowerCase();
+  }
+}
+
+if (PROD_DATABASE_URL && getEndpointIdentifier(TEST_DATABASE_URL) === getEndpointIdentifier(PROD_DATABASE_URL)) {
+  console.error('\n🛑 [BLOCKED] HOMOLOGATION ERROR (Order 025 Point 2):');
+  console.error('TEST_DATABASE_URL resolves to the same database host/name as DATABASE_URL (Production).');
+  console.error('Connection pooler and direct aliases to the production database are strictly blocked.');
   process.exit(1);
 }
 
 async function runHomologationSuite() {
   console.log('===============================================================');
-  console.log('HELPUS FBA SUITE & ERP - SUITE DE TESTES EM STAGING ISOLADO (ORDEM 024)');
+  console.log('HELPUS FBA SUITE & ERP - SUITE DE TESTES EM STAGING ISOLADO (ORDEM 025)');
   console.log('===============================================================');
 
   const isSsl = !TEST_DATABASE_URL.includes('localhost') && !TEST_DATABASE_URL.includes('127.0.0.1');
@@ -34,6 +45,10 @@ async function runHomologationSuite() {
   });
   await client.connect();
 
+  // Server-side identity verification
+  const serverInfo = await client.query('SELECT current_database() as db, inet_server_addr() as ip;');
+  console.log(`Conectado ao PostgreSQL Staging: DB='${serverInfo.rows[0].db}', Server IP='${serverInfo.rows[0].ip}'`);
+
   console.log('\n[1/6] VERIFICAÇÃO DE TABELAS & CONSTRAINTS');
   const tables = await client.query(`
     SELECT table_name FROM information_schema.tables 
@@ -41,7 +56,8 @@ async function runHomologationSuite() {
   `);
   console.log('Tabelas ativas no PostgreSQL:', tables.rows.map(r => r.table_name).join(', '));
   if (tables.rows.length < 8) {
-    throw new Error('Número insuficiente de tabelas no schema.');
+    console.error('❌ Falha: Número insuficiente de tabelas no schema.');
+    process.exit(1);
   }
 
   // Isolated test identifiers
@@ -50,14 +66,21 @@ async function runHomologationSuite() {
   const testWarehouse = 'WH-TEST-ISOLATED';
 
   try {
-    // 0. Create test warehouse to satisfy foreign keys
+    // 0. Create test warehouse to satisfy foreign keys (Order 025: schema has code, name, country, description)
     await client.query(`
-      INSERT INTO warehouses (code, name, country, active)
-      VALUES ($1, 'Isolated Staging Test Warehouse', 'US', true)
+      INSERT INTO warehouses (code, name, country, description)
+      VALUES ($1, 'Isolated Staging Test Warehouse', 'US', 'Ephemeral warehouse node for homologation test.')
       ON CONFLICT (code) DO NOTHING;
     `, [testWarehouse]);
 
     console.log('\n[2/6] TESTE DE IDEMPOTÊNCIA: INVOICE TESTE ISOLADA');
+    await client.query(`
+      INSERT INTO invoices (id, tipo, numero, data_emissao, fornecedor_nome, fornecedor_doc, valor_total, moeda, status, itens_count)
+      VALUES ($1, 'INVOICE_US', $2, NOW(), 'Isolated Test Supplier', 'US-EIN-99999', 100.00, 'USD', 'EM_TRANSITO', 1)
+      ON CONFLICT (id) DO NOTHING;
+    `, [`inv-us-${testInvNumber}`, testInvNumber]);
+
+    // Tentativa duplicada proposital para testar idempotência
     await client.query(`
       INSERT INTO invoices (id, tipo, numero, data_emissao, fornecedor_nome, fornecedor_doc, valor_total, moeda, status, itens_count)
       VALUES ($1, 'INVOICE_US', $2, NOW(), 'Isolated Test Supplier', 'US-EIN-99999', 100.00, 'USD', 'EM_TRANSITO', 1)
@@ -69,7 +92,10 @@ async function runHomologationSuite() {
       [testInvNumber]
     );
     if (checkDuplicate.rows.length === 1) {
-      console.log(`✓ Idempotência confirmada: Invoice isolada ${testInvNumber} criada com sucesso.`);
+      console.log(`✓ Idempotência confirmada: Invoice isolada ${testInvNumber} existe exatamente 1 vez.`);
+    } else {
+      console.error('❌ Falha no teste de idempotência: número inesperado de registros:', checkDuplicate.rows.length);
+      process.exit(1);
     }
 
     console.log('\n[3/6] TESTE DE INTEGRIDADE FK & DE-PARA DETERMINÍSTICO');
@@ -127,12 +153,25 @@ async function runHomologationSuite() {
     const failed = results.filter((r) => !r.success);
     console.log(`✓ Resultados da concorrência: ${successful.length} aprovada(s), ${failed.length} rejeitada(s).`);
 
+    // Strict assertion: exactly 1 must succeed and 1 must fail
+    if (successful.length !== 1 || failed.length !== 1) {
+      console.error('❌ Falha na asserção de concorrência: esperado 1 sucesso e 1 rejeição.');
+      process.exit(1);
+    }
+
     console.log('\n[5/6] TESTE DE DURABILIDADE APÓS REINÍCIO (PERSISTÊNCIA RELACIONAL)');
     const balanceFinal = await client.query(
       `SELECT quantity FROM inventory_balances WHERE product_sku = $1 AND warehouse_code = $2`,
       [testSku, testWarehouse]
     );
-    console.log(`✓ Saldo persistido confirmado: ${balanceFinal.rows[0].quantity} un (10 - 7 = 3).`);
+    const finalQty = balanceFinal.rows[0].quantity;
+    console.log(`✓ Saldo persistido confirmado: ${finalQty} un.`);
+
+    // Strict assertion: final quantity must be exactly 3 (10 - 7 = 3)
+    if (finalQty !== 3) {
+      console.error(`❌ Falha na asserção de saldo durável: esperado 3, encontrado ${finalQty}`);
+      process.exit(1);
+    }
 
   } finally {
     console.log('\n[6/6] LIMPEZA RIGOROSA DE ARTEFATOS EFÊMEROS (ZERO RESÍDUOS)');
@@ -141,7 +180,7 @@ async function runHomologationSuite() {
     await client.query(`DELETE FROM products WHERE sku = $1;`, [testSku]);
     await client.query(`DELETE FROM invoices WHERE numero = $1;`, [testInvNumber]);
 
-    // Verify absence of residues
+    // Verify absence of residues by strict SQL assertions
     const resWh = await client.query(`SELECT COUNT(*) FROM warehouses WHERE code = $1;`, [testWarehouse]);
     const resBal = await client.query(`SELECT COUNT(*) FROM inventory_balances WHERE warehouse_code = $1;`, [testWarehouse]);
     const resProd = await client.query(`SELECT COUNT(*) FROM products WHERE sku = $1;`, [testSku]);
@@ -151,7 +190,8 @@ async function runHomologationSuite() {
     if (totalResidues === 0) {
       console.log('✓ Ausência total de resíduos comprovada por asserção SQL (0 registros remanescentes).');
     } else {
-      console.error(`⚠️ ATENÇÃO: Resíduos detectados (${totalResidues} registros).`);
+      console.error(`❌ ERRO: Resíduos detectados (${totalResidues} registros remanescentes).`);
+      process.exit(1);
     }
 
     await client.end();

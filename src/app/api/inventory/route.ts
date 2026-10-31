@@ -21,28 +21,33 @@ export async function GET(req: NextRequest) {
     const state = await getAuthoritativeErpState();
     const isPrivileged = auth.actorRole === 'MASTER_SUPERADMIN' || auth.actorRole === 'OPERATOR';
 
-    // Compute warehouse summary (redacting total monetary valuation if unauthenticated)
+    // Compute warehouse summary (redacting total monetary valuation and physical unit quantities if unauthenticated)
     const warehouseSummary = Object.keys(WAREHOUSES).map((code) => {
       const whCode = code as WarehouseCode;
       const whInfo = WAREHOUSES[whCode];
-      const totalUnits = state.items.reduce((sum, item) => sum + (item.balances[whCode] || 0), 0);
+      const rawTotalUnits = state.items.reduce((sum, item) => sum + (item.balances[whCode] || 0), 0);
       const rawTotalValue = state.items.reduce((sum, item) => sum + ((item.balances[whCode] || 0) * (item.unitCost || 0)), 0);
 
       return {
         ...whInfo,
-        totalUnits,
+        totalUnits: isPrivileged ? rawTotalUnits : null,
         totalValue: isPrivileged ? parseFloat(rawTotalValue.toFixed(2)) : null,
       };
     });
 
-    // Sanitize item catalog: redact unitCost and confidential supplier if anonymous
+    // Sanitize item catalog: redact salePrice, unitCost, supplierName, balances and totalStock if anonymous
     const sanitizedItems = state.items.map((item) => {
       if (isPrivileged) return item;
-      const { unitCost, supplierName, ...publicFields } = item;
+      const { unitCost, salePrice, supplierName, reorderPoint, balances, totalStock, ...publicFields } = item;
       return {
         ...publicFields,
         unitCost: undefined,
+        salePrice: undefined,
         supplierName: 'Confidencial (Requer Autenticação)',
+        reorderPoint: undefined,
+        balances: {}, // Omitted for commercial privacy
+        totalStock: undefined,
+        availability: (totalStock || 0) > 0 ? 'DISPONÍVEL' : 'ESGOTADO',
       };
     });
 
@@ -90,19 +95,8 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Until both batch-receive paths use authoritative PostgreSQL transactions,
-    // never allow these JSON-only mutations in serverless production.
-    if (
-      process.env.NODE_ENV === 'production' &&
-      (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) &&
-      (action === 'batch_receive_braspress' || action === 'batch_receive_fba')
-    ) {
-      return NextResponse.json(
-        { ok: false, message: 'Recebimento em lote temporariamente indisponível: operação requer persistência transacional PostgreSQL.' },
-        { status: 503 }
-      );
-    }
-
+    // Direct authorized PostgreSQL transactional execution (Order 025 Point 5):
+    // 503 temporary block removed; operations execute full ACID SQL transaction with row locking.
     if (action === 'batch_receive_braspress') {
       const result = await batchReceiveBraspress();
       return NextResponse.json({
