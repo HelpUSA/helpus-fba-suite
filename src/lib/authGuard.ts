@@ -26,7 +26,11 @@ function getOperatorSecret(): string | null {
   return process.env.HELPUS_OPERATOR_TOKEN || process.env.OPERATOR_SECRET || null;
 }
 
-export function validateApiRequest(req: NextRequest, isMutation = false): AuthValidationResult {
+export function validateApiRequest(
+  req: NextRequest,
+  isMutation = false,
+  sensitiveReadOnly = false
+): AuthValidationResult {
   // Read token from Authorization header or custom API headers
   const authHeader = req.headers.get('authorization') || '';
   const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
@@ -46,7 +50,18 @@ export function validateApiRequest(req: NextRequest, isMutation = false): AuthVa
     return { authorized: true, actorRole: 'OPERATOR' };
   }
 
-  // 3. For read-only operations (isMutation = false), allow anonymous read access for public dashboard queries
+  const enforceAuthReads = Boolean(process.env.REQUIRE_AUTH_READS === 'true' || process.env.STRICT_READ_AUTH === 'true');
+
+  // 3. Sensitive read endpoints (e.g. invoices with supplier tax docs, confidential costs) require authentication
+  if (!isMutation && (sensitiveReadOnly || enforceAuthReads)) {
+    return {
+      authorized: false,
+      reason: 'Acesso negado: Consulta a dados fiscais e documentos operacionais confidenciais exige autenticação de Operador ou Master.',
+      actorRole: 'ANONYMOUS',
+    };
+  }
+
+  // 4. For general read-only operations (isMutation = false), allow anonymous read access for public dashboard queries
   if (!isMutation) {
     return {
       authorized: true,
@@ -54,7 +69,7 @@ export function validateApiRequest(req: NextRequest, isMutation = false): AuthVa
     };
   }
 
-  // 4. For mutation operations (isMutation = true): STRICT FAIL-CLOSED
+  // 5. For mutation operations (isMutation = true): STRICT FAIL-CLOSED
   // No host header spoofing, no automatic same-origin mutation bypass.
   if (!masterSecret && !operatorSecret) {
     return {

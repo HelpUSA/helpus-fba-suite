@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getErpState, registerUsCommercialInvoice } from '@/lib/erpStore';
+import { getAuthoritativeErpState, registerUsCommercialInvoice } from '@/lib/erpStore';
 import { validateApiRequest } from '@/lib/authGuard';
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = validateApiRequest(req, false);
+    // Protected read: invoices contain supplier identifiers and confidential tax/cost data (Order 016 - Item 4)
+    const auth = validateApiRequest(req, false, true);
     if (!auth.authorized) {
       return NextResponse.json({ ok: false, message: auth.reason }, { status: 403 });
     }
 
-    const state = getErpState();
+    const state = await getAuthoritativeErpState();
     return NextResponse.json({
       ok: true,
-      invoices: state.invoices,
+      storageEngine: state.storageEngine || 'UNKNOWN',
+      invoices: state.invoices || [],
     });
   } catch (error: any) {
     return NextResponse.json(
@@ -39,7 +41,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = registerUsCommercialInvoice({
+    const result = await registerUsCommercialInvoice({
       invoiceNumber,
       vendorName,
       vendorDoc,

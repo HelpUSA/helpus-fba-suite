@@ -28,13 +28,30 @@ export function getPostgresPool(): Pool {
   }
 
   const isProduction = process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL);
+  const isLocalhost = connectionString.includes('localhost') || connectionString.includes('127.0.0.1');
+
+  let sslConfig: boolean | { rejectUnauthorized: boolean; ca?: string } = false;
+  if (!isLocalhost) {
+    if (process.env.PG_SSL_CA) {
+      sslConfig = {
+        rejectUnauthorized: true,
+        ca: process.env.PG_SSL_CA,
+      };
+    } else if (process.env.PG_SSL_STRICT === 'true') {
+      sslConfig = { rejectUnauthorized: true };
+    } else if (process.env.PG_SSL_ALLOW_INSECURE === 'true') {
+      sslConfig = { rejectUnauthorized: false };
+    } else {
+      // Configurable TLS: defaults to strict in production when requested, or false if self-signed proxy
+      sslConfig = isProduction && !process.env.PG_SSL_ALLOW_INSECURE
+        ? { rejectUnauthorized: true }
+        : { rejectUnauthorized: false };
+    }
+  }
 
   globalPool = new Pool({
     connectionString,
-    ssl:
-      connectionString.includes('localhost') || connectionString.includes('127.0.0.1')
-        ? false
-        : { rejectUnauthorized: false },
+    ssl: sslConfig,
     max: isProduction ? 10 : 3,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
@@ -638,4 +655,103 @@ export async function persistBatchReceiveFbaPostgres(): Promise<{ totalUnits: nu
 
     return { totalUnits };
   });
+}
+
+/**
+ * Persist a US Commercial Invoice in PostgreSQL within an ACID transaction (Order 016 - Finding 3).
+ */
+export async function persistUsCommercialInvoicePostgres(data: {
+  invoiceNumber: string;
+  vendorName: string;
+  vendorDoc?: string;
+  items: Array<{ sku: string; title: string; quantity: number; unitPrice: number }>;
+  shippingCost?: number;
+  prepCost?: number;
+  date?: string;
+}): Promise<string> {
+  const invoiceId = `inv-us-${data.invoiceNumber.replace(/[^a-zA-Z0-9]/g, '-')}-${Date.now()}`;
+  const totalItemsVal = data.items.reduce((s, it) => s + it.quantity * it.unitPrice, 0);
+  const totalInvoice = totalItemsVal + (data.shippingCost || 0) + (data.prepCost || 0);
+
+  await withTransaction(async (client) => {
+    // 1. Idempotency check: numero and tipo = 'INVOICE_US'
+    const checkInv = await client.query(
+      `SELECT id FROM invoices WHERE numero = $1 AND tipo = 'INVOICE_US'`,
+      [data.invoiceNumber]
+    );
+    if (checkInv.rows.length > 0) {
+      throw new Error(`Commercial Invoice US Nº ${data.invoiceNumber} já foi registrada anteriormente.`);
+    }
+
+    // 2. Insert Invoice header
+    await client.query(
+      `INSERT INTO invoices (id, tipo, numero, data_emissao, data_importacao, fornecedor_nome, fornecedor_doc, valor_total, moeda, status, itens_count)
+       VALUES ($1, 'INVOICE_US', $2, $3, NOW(), $4, $5, $6, 'USD', 'EM_TRANSITO', $7)`,
+      [
+        invoiceId,
+        data.invoiceNumber,
+        data.date || new Date().toISOString(),
+        data.vendorName,
+        data.vendorDoc || 'US-CORP-VALID',
+        parseFloat(totalInvoice.toFixed(2)),
+        data.items.length,
+      ]
+    );
+
+    // 3. Process items and balances in WH-USA-PREP
+    for (const it of data.items) {
+      const itemTotal = it.quantity * it.unitPrice;
+      const share = totalItemsVal > 0 ? itemTotal / totalItemsVal : 1;
+      const itemExtra = ((data.shippingCost || 0) + (data.prepCost || 0)) * share;
+      const effectiveCost = parseFloat(((itemTotal + itemExtra) / it.quantity).toFixed(2));
+
+      // Ensure product exists
+      await client.query(
+        `INSERT INTO products (sku, title, marketplace, currency, unit_cost, sale_price, supplier_name)
+         VALUES ($1, $2, 'Amazon US', 'USD', $3, $4, $5)
+         ON CONFLICT (sku) DO UPDATE SET unit_cost = EXCLUDED.unit_cost, updated_at = NOW()`,
+        [
+          it.sku,
+          it.title,
+          effectiveCost,
+          parseFloat((effectiveCost * 3.5).toFixed(2)),
+          data.vendorName,
+        ]
+      );
+
+      // Insert invoice item
+      await client.query(
+        `INSERT INTO invoice_items (invoice_id, sku, descricao, quantidade, valor_unitario, custo_efetivo_unitario)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [invoiceId, it.sku, it.title, it.quantity, it.unitPrice, effectiveCost]
+      );
+
+      // Increment inventory balance in WH-USA-PREP
+      await client.query(
+        `INSERT INTO inventory_balances (product_sku, warehouse_code, quantity, updated_at)
+         VALUES ($1, 'WH-USA-PREP', $2, NOW())
+         ON CONFLICT (product_sku, warehouse_code)
+         DO UPDATE SET quantity = inventory_balances.quantity + EXCLUDED.quantity, updated_at = NOW()`,
+        [it.sku, it.quantity]
+      );
+
+      // Log movement INBOUND_IMPORT
+      const movId = `mov-inv-us-${Date.now()}-${it.sku.toLowerCase()}`;
+      await client.query(
+        `INSERT INTO stock_movements (id, timestamp, sku, product_title, movement_type, to_warehouse, quantity, unit_cost, document_ref, notes)
+         VALUES ($1, NOW(), $2, $3, 'INBOUND_IMPORT', 'WH-USA-PREP', $4, $5, $6, $7)`,
+        [
+          movId,
+          it.sku,
+          it.title,
+          it.quantity,
+          effectiveCost,
+          `Invoice ${data.invoiceNumber}`,
+          `Entrada internacional faturada por ${data.vendorName} recebida no hub 3PL Prep Ninjas.`,
+        ]
+      );
+    }
+  });
+
+  return invoiceId;
 }

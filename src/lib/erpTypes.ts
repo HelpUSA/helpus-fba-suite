@@ -206,5 +206,5 @@ export interface ErpDatabaseState {
   invoices: StoredInvoice[];
   orders?: SaleOrder[];
   returns?: ReturnRecord[];
-  storageEngine?: 'POSTGRES' | 'PERSISTENT_JSON' | 'EPHEMERAL_CACHE';
+  storageEngine?: 'POSTGRES' | 'PERSISTENT_JSON' | 'EPHEMERAL_CACHE' | 'DEMO_READ_ONLY_UNPERSISTED';
 }

@@ -9,6 +9,7 @@ import {
   WarehouseCode,
 } from '@/lib/erpStore';
 import { validateApiRequest } from '@/lib/authGuard';
+import { isPostgresConfigured } from '@/lib/db/postgresClient';
 
 export async function GET(req: NextRequest) {
   try {

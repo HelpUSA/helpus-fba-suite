@@ -18,6 +18,7 @@ import {
   persistSaleOrderPostgres,
   persistStockTransferPostgres,
   persistNfeInboundPostgres,
+  persistUsCommercialInvoicePostgres,
   persistReturnPostgres,
   persistBatchReceiveBraspressPostgres,
   persistBatchReceiveFbaPostgres,
@@ -394,22 +395,37 @@ export function getErpState(): ErpDatabaseState {
  * Authoritative ERP state reader (Order 014 - Finding 1).
  * Reads directly from PostgreSQL tables when DATABASE_URL is configured.
  */
-export async function getAuthoritativeErpState(): Promise<ErpDatabaseState> {
-  if (isPostgresConfigured()) {
+export async function getAuthoritativeErpState(options: { allowDemoInProd?: boolean } = {}): Promise<ErpDatabaseState> {
+  const isProd = process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL);
+  const hasPg = isPostgresConfigured();
+
+  if (hasPg) {
     try {
       const pgState = await fetchAuthoritativePostgresState();
       if (pgState) {
         inMemoryDbState = pgState;
         return pgState;
       }
-    } catch (err) {
-      console.error('[ErpStore] Falha ao consultar estado autoritativo do PostgreSQL:', err);
-      if (process.env.NODE_ENV === 'production') {
+    } catch (err: any) {
+      console.error('[ErpStore] Falha ao consultar estado autoritativo do PostgreSQL:', err?.message || err);
+      if (isProd) {
         throw new Error('[PostgreSQL Indisponível] Falha ao consultar estado autoritativo do banco de dados em produção.');
       }
     }
   }
-  return getErpState();
+
+  // Fail-Safe / Zero-Faux: In production without PostgreSQL, block returning seed mock data as authoritative real operational data (Order 016 - Item 1)
+  if (isProd && !options.allowDemoInProd) {
+    throw new Error(
+      '[PostgreSQL Não Configurado] Leituras operacionais autoritativas bloqueadas em produção: DATABASE_URL ausente. O ERP HelpUS exige banco relacional ativo em ambiente de produção para garantir integridade e prevenir exibição de dados sintéticos não persistidos.'
+    );
+  }
+
+  const state = getErpState();
+  if (isProd) {
+    state.storageEngine = 'DEMO_READ_ONLY_UNPERSISTED';
+  }
+  return state;
 }
 
 export function saveErpState(state: ErpDatabaseState): void {
@@ -460,8 +476,19 @@ export async function registerNfeInbound(nfe: NfeData): Promise<{ success: boole
     throw new Error('[Persistência Fail-Closed] Importação NF-e bloqueada: PostgreSQL não configurado no ambiente de produção.');
   }
 
-  const state = getErpState();
+  if (hasPostgres) {
+    // Authoritative PostgreSQL transaction with ACID guarantees & row locking
+    const invoiceId = await persistNfeInboundPostgres(nfe);
+    inMemoryDbState = await fetchAuthoritativePostgresState();
+    return {
+      success: true,
+      invoiceId,
+      message: `NF-e Nº ${nfe.numeroNF} processada com sucesso no PostgreSQL! ${nfe.itens.length} produtos adicionados ao estoque em trânsito da Braspress.`,
+    };
+  }
 
+  // Local development / fallback without PostgreSQL
+  const state = getErpState();
   const existing = state.invoices.find((inv) => inv.chave === nfe.chaveAcesso);
   if (existing) {
     return {
@@ -472,18 +499,13 @@ export async function registerNfeInbound(nfe: NfeData): Promise<{ success: boole
   }
 
   let invoiceId = `inv-nfe-${nfe.numeroNF}-${Date.now()}`;
-  if (hasPostgres) {
-    invoiceId = await persistNfeInboundPostgres(nfe);
-  }
   const now = new Date().toISOString();
 
   const detalhesItens = nfe.itens.map((item) => {
-    // Match by official supplier catalog code first
     const cleanCode = item.cProd.replace(/\D/g, '').slice(-3);
     const catalogEntry = NATIVOS_SKU_CATALOG[cleanCode];
     let sku = catalogEntry ? catalogEntry.sku : `NAT-${item.cProd.replace(/[^a-zA-Z0-9-]/g, '')}`;
 
-    // Heuristic fallback for non-standard supplier codes
     if (!catalogEntry) {
       if (item.xProd.toUpperCase().includes('RESVERATROL')) sku = 'NAT-RESV-60CAPS';
       else if (item.xProd.toUpperCase().includes('TREONATO')) sku = 'NAT-MAG-TREON-60C';
@@ -586,6 +608,17 @@ export async function transferInventory(
     throw new Error('[Persistência Fail-Closed] Transferência de estoque bloqueada: PostgreSQL não configurado no ambiente de produção.');
   }
 
+  if (hasPostgres) {
+    // Authoritative PostgreSQL transaction with row locks SELECT ... FOR UPDATE
+    await persistStockTransferPostgres({ sku, fromWh: fromWarehouse, toWh: toWarehouse, quantity, notes });
+    inMemoryDbState = await fetchAuthoritativePostgresState();
+    return {
+      success: true,
+      message: `${quantity} unidades do SKU ${sku} transferidas com sucesso para ${WAREHOUSES[toWarehouse].name} via transação PostgreSQL.`,
+    };
+  }
+
+  // Local development / fallback without PostgreSQL
   const state = getErpState();
   const product = state.items.find((p) => p.sku === sku);
 
@@ -599,10 +632,6 @@ export async function transferInventory(
       success: false,
       message: `Saldo insuficiente em ${WAREHOUSES[fromWarehouse].name}. Disponível: ${currentFromBalance}, solicitado: ${quantity}.`,
     };
-  }
-
-  if (hasPostgres) {
-    await persistStockTransferPostgres({ sku, fromWh: fromWarehouse, toWh: toWarehouse, quantity, notes });
   }
 
   product.balances[fromWarehouse] -= quantity;
@@ -795,6 +824,44 @@ export async function recordSaleOrder(params: {
     throw new Error('[Persistência Fail-Closed] Faturamento bloqueado: PostgreSQL não configurado no ambiente de produção.');
   }
 
+  const isUS = params.marketplace === 'Amazon US';
+  const sourceWh: WarehouseCode = isUS ? 'WH-USA-FBA-RYY2' : 'WH-BR-LOCAL-JPA';
+  const orderNum = params.orderNumber || (isUS ? `114-${Math.floor(1000000 + Math.random() * 9000000)}-${Math.floor(1000000 + Math.random() * 9000000)}` : `PED-BR-${Date.now().toString().slice(-6)}`);
+
+  if (hasPostgres) {
+    // Construct order model and delegate validation directly to relational row lock in PostgreSQL (Order 016 - Finding 2)
+    const price = params.salePrice || (isUS ? 9.99 : 79.90);
+    const unitCost = isUS ? 1.25 : 25.76;
+    const commission = isUS ? price * 0.15 : price * 0.16;
+    const fulfillmentCost = isUS ? 3.49 : 12.90;
+    const grossProfit = parseFloat(((price - unitCost - commission - fulfillmentCost) * params.quantity).toFixed(2));
+
+    const newOrder: SaleOrder = {
+      id: `ord-${Date.now()}`,
+      orderNumber: orderNum,
+      marketplace: params.marketplace,
+      date: new Date().toISOString(),
+      sku: params.sku,
+      productTitle: params.sku,
+      quantity: params.quantity,
+      salePrice: price,
+      unitCost,
+      grossProfit,
+      customerCity: params.customerCity || (isUS ? 'Miami, FL' : 'São Paulo/SP'),
+      warehouseSource: sourceWh,
+      status: 'CONFIRMED',
+    };
+
+    await persistSaleOrderPostgres(newOrder);
+    inMemoryDbState = await fetchAuthoritativePostgresState();
+    return {
+      success: true,
+      message: `Venda registrada com sucesso no PostgreSQL! Pedido ${orderNum} faturado (-${params.quantity} un em ${WAREHOUSES[sourceWh].name}).`,
+      order: newOrder,
+    };
+  }
+
+  // Local development / fallback without PostgreSQL
   const state = getErpState();
   if (!state.orders) state.orders = [];
 
@@ -803,10 +870,7 @@ export async function recordSaleOrder(params: {
     return { success: false, message: `SKU ${params.sku} não encontrado no catálogo.` };
   }
 
-  const isUS = params.marketplace === 'Amazon US';
-  const sourceWh: WarehouseCode = isUS ? 'WH-USA-FBA-RYY2' : 'WH-BR-LOCAL-JPA';
   const availableStock = product.balances[sourceWh] || 0;
-
   if (availableStock < params.quantity) {
     return {
       success: false,
@@ -816,12 +880,9 @@ export async function recordSaleOrder(params: {
 
   const price = params.salePrice || product.salePrice;
   const unitCost = product.unitCost;
-  // Estimate net profit after commission & fba/frete
   const commission = isUS ? price * 0.15 : price * 0.16;
   const fulfillmentCost = isUS ? 3.49 : 12.90;
   const grossProfit = parseFloat(((price - unitCost - commission - fulfillmentCost) * params.quantity).toFixed(2));
-
-  const orderNum = params.orderNumber || (isUS ? `114-${Math.floor(1000000 + Math.random() * 9000000)}-${Math.floor(1000000 + Math.random() * 9000000)}` : `PED-BR-${Date.now().toString().slice(-6)}`);
 
   const newOrder: SaleOrder = {
     id: `ord-${Date.now()}`,
@@ -839,17 +900,10 @@ export async function recordSaleOrder(params: {
     status: 'CONFIRMED',
   };
 
-  if (hasPostgres) {
-    await persistSaleOrderPostgres(newOrder);
-  }
-
-  // Deduct stock in local state
   product.balances[sourceWh] -= params.quantity;
   product.totalStock = Object.values(product.balances).reduce((a, b) => a + b, 0);
 
   state.orders.unshift(newOrder);
-
-  // Stock Movement Log
   state.movements.unshift({
     id: `mov-sale-${Date.now()}`,
     timestamp: new Date().toISOString(),
@@ -871,7 +925,7 @@ export async function recordSaleOrder(params: {
   };
 }
 
-export function registerUsCommercialInvoice(data: {
+export async function registerUsCommercialInvoice(data: {
   invoiceNumber: string;
   vendorName: string;
   vendorDoc?: string;
@@ -879,7 +933,25 @@ export function registerUsCommercialInvoice(data: {
   shippingCost?: number;
   prepCost?: number;
   date?: string;
-}): { success: boolean; invoiceId: string; message: string } {
+}): Promise<{ success: boolean; invoiceId: string; message: string }> {
+  const isVercelServerless = Boolean(process.env.VERCEL) || (typeof process !== 'undefined' && process.cwd && process.cwd().startsWith('/var/task'));
+  const hasPostgres = isPostgresConfigured();
+
+  if (isVercelServerless && !hasPostgres && process.env.NODE_ENV === 'production') {
+    throw new Error('[Persistência Fail-Closed] Registro de Commercial Invoice bloqueado: PostgreSQL não configurado no ambiente de produção.');
+  }
+
+  if (hasPostgres) {
+    const invoiceId = await persistUsCommercialInvoicePostgres(data);
+    inMemoryDbState = await fetchAuthoritativePostgresState();
+    return {
+      success: true,
+      invoiceId,
+      message: `Commercial Invoice ${data.invoiceNumber} registrada com sucesso no PostgreSQL! ${data.items.length} produto(s) adicionados ao armazém Prep Ninjas (UT).`,
+    };
+  }
+
+  // Local development / fallback without PostgreSQL
   const state = getErpState();
   const now = new Date().toISOString();
   const invoiceId = `inv-us-${data.invoiceNumber.replace(/[^a-zA-Z0-9]/g, '-')}-${Date.now()}`;
@@ -897,7 +969,6 @@ export function registerUsCommercialInvoice(data: {
   const totalInvoice = totalItemsVal + (data.shippingCost || 0) + (data.prepCost || 0);
 
   const detalhesItens = data.items.map((it) => {
-    // Distribute freight & prep proportionally
     const itemTotal = it.quantity * it.unitPrice;
     const share = totalItemsVal > 0 ? itemTotal / totalItemsVal : 1;
     const itemExtra = ((data.shippingCost || 0) + (data.prepCost || 0)) * share;
@@ -997,9 +1068,13 @@ export async function addReturnRecord(data: Omit<ReturnRecord, 'id'>): Promise<R
   };
 
   if (hasPostgres) {
+    // Authoritative PostgreSQL transaction with row locking (Order 016 - Item 2)
     await persistReturnPostgres(newReturn);
+    inMemoryDbState = await fetchAuthoritativePostgresState();
+    return newReturn;
   }
 
+  // Local development / fallback without PostgreSQL
   const state = getErpState();
   if (!state.returns) {
     state.returns = [];
