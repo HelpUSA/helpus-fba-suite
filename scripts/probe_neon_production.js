@@ -20,9 +20,9 @@ function request(url, options = {}) {
 }
 
 async function probe() {
-  console.log('--- PROBING PRODUCTION WITH NEON POSTGRESQL (dpl_4fvf51xJ6KCCw7piFjZYykNFREYo) ---');
+  console.log('--- PROBING PRODUCTION WITH NEON POSTGRESQL (dpl_CapKx4w5nBDa7mtGQEYhdanZ85Y7) ---');
 
-  // 1. GET /api/inventory (now connected to Neon PostgreSQL!)
+  // 1. GET /api/inventory (connected to Neon PostgreSQL)
   const invRes = await request('https://fba.helpusbr.com/api/inventory');
   console.log('GET /api/inventory status:', invRes.status);
   try {
@@ -49,9 +49,9 @@ async function probe() {
   const postRes = await request('https://fba.helpusbr.com/api/inventory', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'batch_receive_braspress' }),
+    body: JSON.stringify({ sku: 'TEST-SKU', name: 'Test' }),
   });
-  console.log('\nPOST /api/inventory (unauth mutation) status:', postRes.status);
+  console.log('\nPOST /api/inventory (unauthorized) status:', postRes.status);
 }
 
 probe().catch(console.error);

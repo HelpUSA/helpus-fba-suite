@@ -10,10 +10,10 @@ async function provisionDatabase() {
 
   const fbaClient = new Client({
     connectionString,
-    ssl: isSsl ? { rejectUnauthorized: false } : false
+    ssl: isSsl ? { rejectUnauthorized: true } : false
   });
   await fbaClient.connect();
-  console.log("Connected to PostgreSQL cloud database. Applying schema.sql...");
+  console.log("Connected to PostgreSQL cloud database (Strict TLS: rejectUnauthorized=true). Applying schema.sql...");
   
   const schemaPath = path.join(__dirname, '..', 'src', 'lib', 'db', 'schema.sql');
   const schemaSql = fs.readFileSync(schemaPath, 'utf-8');

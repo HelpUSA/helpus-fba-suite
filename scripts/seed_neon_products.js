@@ -99,10 +99,10 @@ async function seed() {
   const isSsl = !process.env.DATABASE_URL.includes('localhost') && !process.env.DATABASE_URL.includes('127.0.0.1');
   const client = new Client({
     connectionString: process.env.DATABASE_URL,
-    ssl: isSsl ? { rejectUnauthorized: false } : false
+    ssl: isSsl ? { rejectUnauthorized: true } : false
   });
   await client.connect();
-  console.log("Connected to Neon PostgreSQL for initial catalog seed...");
+  console.log("Connected to Neon PostgreSQL for initial catalog seed (Strict TLS: rejectUnauthorized=true)...");
 
   for (const p of products) {
     await client.query(`
@@ -117,10 +117,11 @@ async function seed() {
     `, [p.sku, p.asin || null, p.ncm || null, p.title, p.marketplace, p.currency, p.unitCost, p.salePrice, p.imageUrl, p.supplierName, p.reorderPoint]);
 
     for (const [wh, qty] of Object.entries(p.balances)) {
+      // NON-DESTRUCTIVE / IDEMPOTENT: Never overwrite existing operational balances
       await client.query(`
         INSERT INTO inventory_balances (product_sku, warehouse_code, quantity, updated_at)
         VALUES ($1, $2, $3, NOW())
-        ON CONFLICT (product_sku, warehouse_code) DO UPDATE SET quantity = EXCLUDED.quantity, updated_at = NOW();
+        ON CONFLICT (product_sku, warehouse_code) DO NOTHING;
       `, [p.sku, wh, qty]);
     }
   }
