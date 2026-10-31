@@ -1,49 +1,79 @@
-// Authenticated E2E HTTP Route & Transactional Test (Order 027 Correções 1, 5 & 6)
-// Tests real Next.js route handlers against isolated helpus_staging database,
-// validating authentication, concurrency, idempotency, and safe snapshot rollback.
+// Authenticated E2E HTTP Route & Transactional Test (Order 028)
+// Executed strictly inside an isolated child subprocess spawned by run_staging_e2e_isolated.js.
+// Environment variables (DATABASE_URL, POSTGRES_URL, HELPUS_API_SECRET) are fully set before module load.
 
 import { NextRequest } from 'next/server';
 import path from 'path';
-
-if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required.');
-
-// 1. Point DATABASE_URL strictly to helpus_staging for this test runner
-const prodDatabaseUrl = process.env.DATABASE_URL;
-const parsedUrl = new URL(prodDatabaseUrl);
-parsedUrl.pathname = '/helpus_staging';
-const stagingUrl = parsedUrl.toString();
-
-// Set environment for Next.js runtime to staging
-process.env.DATABASE_URL = stagingUrl;
-process.env.POSTGRES_URL = stagingUrl;
-
-// Set master secret if not already in env
-const TEST_SECRET = process.env.HELPUS_API_SECRET || 'helpus_secret_master_test_key_2026';
-process.env.HELPUS_API_SECRET = TEST_SECRET;
-
+import { getPostgresPool, closePostgresPool } from '../src/lib/db/postgresClient';
 import { GET, POST } from '../src/app/api/inventory/route';
-import { closePostgresPool } from '../src/lib/db/postgresClient';
 const { restoreDatabase } = require('./restore_database');
+
+// 1. Mandatory environment assertions (No hardcoded secrets, no in-module mutation)
+const rawStagingUrl = process.env.DATABASE_URL;
+if (!rawStagingUrl) {
+  throw new Error('🛑 BLOQUEIO: DATABASE_URL ausente no subprocesso de teste.');
+}
+const stagingUrl: string = rawStagingUrl;
+
+const parsedUrl = new URL(stagingUrl);
+const dbName = parsedUrl.pathname.replace(/^\//, '').toLowerCase();
+if (dbName === 'neondb' || dbName === 'production') {
+  throw new Error(`🛑 BLOQUEIO CRÍTICO: Tentativa de executar testes E2E diretamente contra o banco '${dbName}'!`);
+}
+
+const rawSecret = process.env.HELPUS_API_SECRET;
+if (!rawSecret || rawSecret.length < 32) {
+  throw new Error('🛑 BLOQUEIO: HELPUS_API_SECRET dinâmico não fornecido pelo inicializador.');
+}
+const TEST_SECRET: string = rawSecret;
+
+const rawProdUrl = process.env.PROD_DATABASE_URL;
+if (!rawProdUrl) {
+  throw new Error('🛑 BLOQUEIO: PROD_DATABASE_URL não configurado para verificação cruzada de exclusão.');
+}
+const prodDatabaseUrl: string = rawProdUrl;
+
+async function verifyStagingPoolIdentity() {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const res = await client.query(`
+      SELECT current_database() AS db,
+             COALESCE((SELECT value FROM staging_metadata WHERE key = 'environment' LIMIT 1), 'unknown') AS env_marker
+    `);
+    const { db, env_marker } = res.rows[0];
+    console.log(`✓ Verificação direta de identidade pelo Pool: DB='${db}', staging_metadata.environment='${env_marker}'`);
+
+    if (db !== 'helpus_staging' || env_marker !== 'staging') {
+      throw new Error(`🛑 BLOQUEIO DE ISOLAMENTO: O pool de conexões não está conectado ao banco de staging isolado! (db=${db}, marker=${env_marker})`);
+    }
+  } finally {
+    client.release();
+  }
+}
 
 async function runRealHttpStagingTests() {
   console.log('===============================================================');
-  console.log('TESTES E2E REAIS DE ROTAS HTTP NEXT.JS EM STAGING (ORDEM 027)');
+  console.log('TESTES E2E REAIS DE ROTAS HTTP NEXT.JS EM STAGING (ORDEM 028)');
   console.log('===============================================================');
-  console.log(`Target DB: helpus_staging (Server-Side Verified)`);
-
-  const backupDir = path.join(__dirname, '..', 'backups');
-  const latestSnapshot = path.join(backupDir, 'latest_backup.enc.json');
+  console.log(`Subprocess Target DB: ${stagingUrl.replace(/:[^:@]+@/, ':***@')}`);
 
   // Step 0: Ensure staging is in clean baseline state before test
   console.log('\n[0/6] PREPARAÇÃO: Restauração limpa da linha de base canônica em staging...');
+  const backupDir = path.join(__dirname, '..', 'backups');
+  const latestSnapshot = path.join(backupDir, 'latest_backup.enc.json');
+
   await closePostgresPool();
   await restoreDatabase(latestSnapshot, stagingUrl, prodDatabaseUrl);
   await closePostgresPool();
 
+  // Step 0.1: Server-side validation via the actual Pool used by Next.js handlers
+  await verifyStagingPoolIdentity();
+
   const baseUrl = 'http://localhost:3000/api/inventory';
 
   try {
-    // 1. GET /api/inventory ANÔNIMO
+    // 1. GET /api/inventory ANÔNIMO (Verificação de políticas de privacidade)
     console.log('\n[1/6] ROTA GET /api/inventory (ANÔNIMO - PRIVACIDADE COMERCIAL)');
     const anonReq = new NextRequest(baseUrl, { method: 'GET' });
     const anonRes = await GET(anonReq);
@@ -60,8 +90,8 @@ async function runRealHttpStagingTests() {
       throw new Error('Falha na política de privacidade de GET anônimo.');
     }
 
-    // 2. GET /api/inventory AUTENTICADO
-    console.log('\n[2/6] ROTA GET /api/inventory (AUTENTICADO COM TOKEN MASTER)');
+    // 2. GET /api/inventory AUTENTICADO COM TOKEN DINÂMICO
+    console.log('\n[2/6] ROTA GET /api/inventory (AUTENTICADO COM TOKEN DINÂMICO)');
     const authGetReq = new NextRequest(baseUrl, {
       method: 'GET',
       headers: { 'x-helpus-auth-token': TEST_SECRET }

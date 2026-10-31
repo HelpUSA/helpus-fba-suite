@@ -1,6 +1,6 @@
-// Decryption & Restore Database Script (Order 027 Correções 2 & 3)
-// Enforces decryption of AES-256-GCM snapshots, clean restoration, exact row count assertions,
-// and SHA-256 table checksum verification against isolated staging database.
+// Decryption & Restore Database Script (Order 028 Correções 2 & 3)
+// Enforces mandatory AES-256-GCM decryption, strict exclusion of production across ALL parameters,
+// server-side identity & staging marker validation before TRUNCATE, and exact checksum assertions.
 
 const { Client } = require('pg');
 const fs = require('fs');
@@ -31,8 +31,9 @@ function decryptSnapshot(encryptedEnvelopePath) {
   const raw = fs.readFileSync(encryptedEnvelopePath, 'utf-8');
   const envelope = JSON.parse(raw);
 
+  // Order 028: Exigir backups criptografados na restauração
   if (!envelope.encrypted) {
-    return envelope;
+    throw new Error("🛑 BLOQUEIO DE SEGURANÇA: Restauração rejeitada. O arquivo não é um snapshot criptografado AES-256-GCM válido.");
   }
 
   const key = getBackupKey();
@@ -47,7 +48,7 @@ function decryptSnapshot(encryptedEnvelopePath) {
   let decrypted = decipher.update(envelope.data, 'hex', 'utf8');
   decrypted += decipher.final('utf8');
 
-  console.log("✓ Snapshot decriptografado com sucesso via AES-256-GCM e authTag verificada.");
+  console.log("✓ Snapshot decriptografado com sucesso via AES-256-GCM (authTag íntegra).");
   return JSON.parse(decrypted);
 }
 
@@ -77,7 +78,7 @@ async function restoreDatabase(snapshotFile, explicitTargetUrl, explicitProdUrl)
     throw new Error('🛑 ERRO: TEST_DATABASE_URL ou STAGING_DATABASE_URL é obrigatória para restauração em staging.');
   }
 
-  // Strict anti-production protection: target database must never be /neondb or match production
+  // Order 028: Validar exclusão de endpoint de produção em TODOS os caminhos (inclusive explicitTargetUrl)
   let targetDbName = '';
   try {
     targetDbName = new URL(TARGET_DB_URL).pathname.toLowerCase().replace(/^\//, '');
@@ -89,8 +90,8 @@ async function restoreDatabase(snapshotFile, explicitTargetUrl, explicitProdUrl)
     throw new Error('🛑 BLOQUEIO DE SEGURANÇA: Tentativa de restauração direcionada à base de PRODUÇÃO (/neondb)!');
   }
 
-  if (PROD_DB_URL && !explicitTargetUrl && getBaseEndpoint(TARGET_DB_URL) === getBaseEndpoint(PROD_DB_URL)) {
-    throw new Error('🛑 BLOQUEIO DE SEGURANÇA: Tentativa de restauração direcionada ao banco de PRODUÇÃO!');
+  if (PROD_DB_URL && getBaseEndpoint(TARGET_DB_URL) === getBaseEndpoint(PROD_DB_URL)) {
+    throw new Error('🛑 BLOQUEIO DE SEGURANÇA: TARGET_DB_URL coincide com o endpoint de PRODUÇÃO!');
   }
 
   const snapshot = decryptSnapshot(snapshotFile);
@@ -107,23 +108,23 @@ async function restoreDatabase(snapshotFile, explicitTargetUrl, explicitProdUrl)
   await client.connect();
 
   try {
-    // 1. Server-side verification of staging environment
+    // 1. Server-side verification of staging environment BEFORE ANY TRUNCATE
     const dbInfo = await client.query('SELECT current_database() as db;');
     const currentDb = dbInfo.rows[0].db;
     if (currentDb === 'neondb' || currentDb === 'production') {
-      throw new Error(`🛑 BLOQUEIO DE SEGURANÇA: current_database() retornou '${currentDb}' (Produção).`);
+      throw new Error(`🛑 BLOQUEIO DE SEGURANÇA: current_database() retornou '${currentDb}' (Produção). Restauração abortada.`);
     }
 
     const markerRes = await client.query("SELECT value FROM staging_metadata WHERE key = 'environment';").catch(() => ({ rows: [] }));
     if (markerRes.rows.length === 0 || markerRes.rows[0].value !== 'staging') {
-      throw new Error("🛑 BLOQUEIO DE SEGURANÇA: Marcador persistente 'staging_metadata' não encontrado no banco de destino.");
+      throw new Error("🛑 BLOQUEIO DE SEGURANÇA: Marcador persistente 'staging_metadata' não encontrado no banco de destino. Restauração abortada.");
     }
-    console.log(`✓ Verificação de segurança aprovada: DB='${currentDb}', ambiente='staging'.`);
+    console.log(`✓ Identidade de servidor comprovada: DB='${currentDb}', ambiente='staging'.`);
 
     await client.query('BEGIN');
 
-    // 2. Clean restoration: truncate ALL tables in staging before applying snapshot
-    console.log('\nLimpando todas as tabelas operacionais de staging para restauração limpa...');
+    // 2. Clean restoration: truncate ALL tables in staging before applying snapshot (strictly after server-side check)
+    console.log('\nLimpando tabelas de staging para restauração limpa...');
     await client.query(`
       TRUNCATE TABLE warehouses, products, inventory_balances, invoice_items, invoices, stock_movements, sale_orders, returns CASCADE;
     `);
@@ -152,11 +153,10 @@ async function restoreDatabase(snapshotFile, explicitTargetUrl, explicitProdUrl)
         }
       }
 
-      // 4. Exact equality assertion & Checksum Verification (Order 027 Correção 2)
+      // 4. Exact equality assertion & Checksum Verification
       const countRes = await client.query(`SELECT COUNT(*) FROM ${table};`);
       const liveCount = parseInt(countRes.rows[0].count);
 
-      // Verify live rows in staging
       const liveRowsRes = await client.query(`SELECT * FROM ${table} ORDER BY 1 ASC;`);
       const liveChecksum = computeTableChecksum(liveRowsRes.rows);
 
@@ -195,11 +195,10 @@ async function restoreDatabase(snapshotFile, explicitTargetUrl, explicitProdUrl)
   }
 }
 
-// Find newest snapshot in backups directory
 function findLatestSnapshot() {
   const backupDir = path.join(__dirname, '..', 'backups');
   if (!fs.existsSync(backupDir)) return null;
-  const files = fs.readdirSync(backupDir).filter(f => f.endsWith('.enc.json') || f.endsWith('.json'));
+  const files = fs.readdirSync(backupDir).filter(f => f.endsWith('.enc.json'));
   if (files.length === 0) return null;
   files.sort().reverse();
   return path.join(backupDir, files[0]);
@@ -208,7 +207,7 @@ function findLatestSnapshot() {
 if (require.main === module) {
   const snapshotPath = process.argv[2] || findLatestSnapshot();
   if (!snapshotPath) {
-    console.error("Nenhum snapshot encontrado em backups/.");
+    console.error("Nenhum snapshot criptografado encontrado em backups/.");
     process.exit(1);
   }
 
@@ -218,4 +217,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { restoreDatabase, decryptSnapshot, computeTableChecksum };
+module.exports = { restoreDatabase, decryptSnapshot, computeTableChecksum, getBackupKey };

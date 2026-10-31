@@ -32,20 +32,20 @@ export function getPostgresPool(): Pool {
 
   let sslConfig: boolean | { rejectUnauthorized: boolean; ca?: string } = false;
   if (!isLocalhost) {
-    if (process.env.PG_SSL_CA) {
-      sslConfig = {
-        rejectUnauthorized: true,
-        ca: process.env.PG_SSL_CA,
-      };
-    } else if (process.env.PG_SSL_STRICT === 'true') {
-      sslConfig = { rejectUnauthorized: true };
-    } else if (process.env.PG_SSL_ALLOW_INSECURE === 'true') {
-      sslConfig = { rejectUnauthorized: false };
+    if (isProduction) {
+      // In production, TLS verification is STRICT and NON-BYPASSABLE (Order 028)
+      sslConfig = process.env.PG_SSL_CA
+        ? { rejectUnauthorized: true, ca: process.env.PG_SSL_CA }
+        : { rejectUnauthorized: true };
     } else {
-      // Configurable TLS: defaults to strict in production when requested, or false if self-signed proxy
-      sslConfig = isProduction && !process.env.PG_SSL_ALLOW_INSECURE
-        ? { rejectUnauthorized: true }
-        : { rejectUnauthorized: false };
+      // Development / local test only
+      if (process.env.PG_SSL_CA) {
+        sslConfig = { rejectUnauthorized: true, ca: process.env.PG_SSL_CA };
+      } else if (process.env.PG_SSL_ALLOW_INSECURE === 'true') {
+        sslConfig = { rejectUnauthorized: false };
+      } else {
+        sslConfig = { rejectUnauthorized: true };
+      }
     }
   }
 
