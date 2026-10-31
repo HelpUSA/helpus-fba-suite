@@ -105,15 +105,11 @@ async function seed() {
   console.log("Connected to Neon PostgreSQL for initial catalog seed (Strict TLS: rejectUnauthorized=true)...");
 
   for (const p of products) {
+    // NON-DESTRUCTIVE / IDEMPOTENT (Order 024): Never overwrite cost, price, or title of existing products
     await client.query(`
       INSERT INTO products (sku, asin, ncm, title, marketplace, currency, unit_cost, sale_price, image_url, supplier_name, reorder_point)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-      ON CONFLICT (sku) DO UPDATE SET 
-        title = EXCLUDED.title,
-        unit_cost = EXCLUDED.unit_cost,
-        sale_price = EXCLUDED.sale_price,
-        image_url = EXCLUDED.image_url,
-        updated_at = NOW();
+      ON CONFLICT (sku) DO NOTHING;
     `, [p.sku, p.asin || null, p.ncm || null, p.title, p.marketplace, p.currency, p.unitCost, p.salePrice, p.imageUrl, p.supplierName, p.reorderPoint]);
 
     for (const [wh, qty] of Object.entries(p.balances)) {

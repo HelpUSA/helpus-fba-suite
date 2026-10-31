@@ -19,28 +19,43 @@ export async function GET(req: NextRequest) {
     }
 
     const state = await getAuthoritativeErpState();
+    const isPrivileged = auth.actorRole === 'MASTER_SUPERADMIN' || auth.actorRole === 'OPERATOR';
 
-    // Compute warehouse summary
+    // Compute warehouse summary (redacting total monetary valuation if unauthenticated)
     const warehouseSummary = Object.keys(WAREHOUSES).map((code) => {
       const whCode = code as WarehouseCode;
       const whInfo = WAREHOUSES[whCode];
       const totalUnits = state.items.reduce((sum, item) => sum + (item.balances[whCode] || 0), 0);
-      const totalValue = state.items.reduce((sum, item) => sum + ((item.balances[whCode] || 0) * item.unitCost), 0);
+      const rawTotalValue = state.items.reduce((sum, item) => sum + ((item.balances[whCode] || 0) * (item.unitCost || 0)), 0);
 
       return {
         ...whInfo,
         totalUnits,
-        totalValue: parseFloat(totalValue.toFixed(2)),
+        totalValue: isPrivileged ? parseFloat(rawTotalValue.toFixed(2)) : null,
+      };
+    });
+
+    // Sanitize item catalog: redact unitCost and confidential supplier if anonymous
+    const sanitizedItems = state.items.map((item) => {
+      if (isPrivileged) return item;
+      const { unitCost, supplierName, ...publicFields } = item;
+      return {
+        ...publicFields,
+        unitCost: undefined,
+        supplierName: 'Confidencial (Requer Autenticação)',
       };
     });
 
     return NextResponse.json({
       ok: true,
+      authenticated: isPrivileged,
+      actorRole: auth.actorRole,
       lastUpdated: state.lastUpdated,
-      items: state.items,
+      items: sanitizedItems,
       warehouseSummary,
-      recentMovements: state.movements.slice(0, 20),
-      orders: state.orders || [],
+      // Operational ledger and customer orders are confidential: returned only to authenticated callers
+      recentMovements: isPrivileged ? state.movements.slice(0, 20) : [],
+      orders: isPrivileged ? (state.orders || []) : [],
     });
   } catch (error: any) {
     return NextResponse.json(

@@ -1,15 +1,16 @@
 import { NextRequest } from 'next/server';
 
 /**
- * HelpUS Security & Authorization Guard (P0 Remediation - Order 013)
+ * HelpUS Security & Authorization Guard (P0 Remediation - Order 013 & Order 024)
  * Strict Fail-Closed Zero-Trust Enforcement.
  *
  * Rules:
  * 1. No hardcoded default secrets allowed.
  * 2. Host header matching (e.g. 'host.includes(fba.helpusbr.com)') NEVER grants mutation permissions.
- * 3. All mutation operations require an authenticated token (Bearer, x-helpus-auth-token, or x-api-key)
+ * 3. All mutation operations require an authenticated token (Bearer, x-helpus-auth-token, x-api-key, or cookie)
  *    matching valid environment-defined secrets.
- * 4. If environment secrets are not set, all mutations fail-closed.
+ * 4. Sensitive read endpoints and confidential financial data require authentication.
+ * 5. If environment secrets are not set, all mutations fail-closed.
  */
 
 export interface AuthValidationResult {
@@ -31,11 +32,12 @@ export function validateApiRequest(
   isMutation = false,
   sensitiveReadOnly = false
 ): AuthValidationResult {
-  // Read token from Authorization header or custom API headers
+  // Read token from Authorization header, custom API headers, or secure cookie
   const authHeader = req.headers.get('authorization') || '';
   const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
   const customToken = req.headers.get('x-helpus-auth-token') || req.headers.get('x-api-key');
-  const token = bearerToken || customToken;
+  const cookieToken = req.cookies.get('helpus_token')?.value || req.cookies.get('helpus_auth')?.value;
+  const token = bearerToken || customToken || cookieToken;
 
   const masterSecret = getMasterSecret();
   const operatorSecret = getOperatorSecret();

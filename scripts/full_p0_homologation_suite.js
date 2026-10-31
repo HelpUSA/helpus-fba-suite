@@ -1,28 +1,35 @@
 const { Client } = require('pg');
 
-// SAFETY GUARD (Order 023 Priority 1 & 5):
-// Block accidental destructive or mutative test suites against live production database.
-const DATABASE_URL = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
-if (!DATABASE_URL) throw new Error('DATABASE_URL is required for PostgreSQL homologation.');
+// STRICT SAFETY GUARD (Order 024 Point 2):
+// Mutative homologation suite MUST ONLY run against a verified isolated staging/test database.
+// Execution against production database is STRICTLY FORBIDDEN and fails immediately with exit code 1.
 
-const isProductionCloud = DATABASE_URL.includes('neon.tech') || DATABASE_URL.includes('vercel-storage.com');
-const allowMutative = process.env.ALLOW_MUTATIVE_TESTS === 'true';
+const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
+const PROD_DATABASE_URL = process.env.DATABASE_URL;
 
-if (isProductionCloud && !allowMutative) {
-  console.error('\n🛑 SAFETY GUARD TRIGGERED (Order 023 Priority 1 & 5):');
-  console.error('Mutative homologation tests are BLOCKED against production cloud database to protect real stock balances.');
-  console.error('To run against an isolated staging branch or ephemeral test schema, provide TEST_DATABASE_URL and ALLOW_MUTATIVE_TESTS=true.');
-  process.exit(0); // Exit safely without error and without touching database
+if (!TEST_DATABASE_URL) {
+  console.error('\n🛑 [BLOCKED] HOMOLOGATION ERROR (Order 024):');
+  console.error('TEST_DATABASE_URL is not set.');
+  console.error('Mutative tests are strictly prohibited from running against production databases.');
+  console.error('Please configure a distinct TEST_DATABASE_URL (e.g. Neon Staging branch or local test DB).');
+  process.exit(1);
+}
+
+if (PROD_DATABASE_URL && TEST_DATABASE_URL.trim() === PROD_DATABASE_URL.trim()) {
+  console.error('\n🛑 [BLOCKED] HOMOLOGATION ERROR (Order 024):');
+  console.error('TEST_DATABASE_URL is identical to DATABASE_URL (Production).');
+  console.error('Running mutative tests on the production database is strictly prohibited.');
+  process.exit(1);
 }
 
 async function runHomologationSuite() {
   console.log('===============================================================');
-  console.log('HELPUS FBA SUITE & ERP - SUITE DE TESTES ISOLADA (ORDEM 023)');
+  console.log('HELPUS FBA SUITE & ERP - SUITE DE TESTES EM STAGING ISOLADO (ORDEM 024)');
   console.log('===============================================================');
 
-  const isSsl = !DATABASE_URL.includes('localhost') && !DATABASE_URL.includes('127.0.0.1');
+  const isSsl = !TEST_DATABASE_URL.includes('localhost') && !TEST_DATABASE_URL.includes('127.0.0.1');
   const client = new Client({
-    connectionString: DATABASE_URL,
+    connectionString: TEST_DATABASE_URL,
     ssl: isSsl ? { rejectUnauthorized: true } : false
   });
   await client.connect();
@@ -37,12 +44,19 @@ async function runHomologationSuite() {
     throw new Error('Número insuficiente de tabelas no schema.');
   }
 
-  // Use isolated test identifiers to guarantee zero interference with canonical operational data
+  // Isolated test identifiers
   const testInvNumber = `TEST-ISOLATED-INV-${Date.now()}`;
   const testSku = 'TEST-SKU-ISOLATED-001';
   const testWarehouse = 'WH-TEST-ISOLATED';
 
   try {
+    // 0. Create test warehouse to satisfy foreign keys
+    await client.query(`
+      INSERT INTO warehouses (code, name, country, active)
+      VALUES ($1, 'Isolated Staging Test Warehouse', 'US', true)
+      ON CONFLICT (code) DO NOTHING;
+    `, [testWarehouse]);
+
     console.log('\n[2/6] TESTE DE IDEMPOTÊNCIA: INVOICE TESTE ISOLADA');
     await client.query(`
       INSERT INTO invoices (id, tipo, numero, data_emissao, fornecedor_nome, fornecedor_doc, valor_total, moeda, status, itens_count)
@@ -75,7 +89,7 @@ async function runHomologationSuite() {
     console.log('\n[4/6] TESTE DE CONCORRÊNCIA SIMULTÂNEA (Promise.all COM SELECT FOR UPDATE)');
     const runTx = async (txId, qtyToDebit) => {
       const c = new Client({
-        connectionString: DATABASE_URL,
+        connectionString: TEST_DATABASE_URL,
         ssl: isSsl ? { rejectUnauthorized: true } : false
       });
       await c.connect();
@@ -121,17 +135,30 @@ async function runHomologationSuite() {
     console.log(`✓ Saldo persistido confirmado: ${balanceFinal.rows[0].quantity} un (10 - 7 = 3).`);
 
   } finally {
-    // CLEANUP: Always remove ephemeral test records so zero mock records remain
-    console.log('\n[6/6] LIMPEZA RIGOROSA DE ARTEFATOS EFÊMEROS DE TESTE');
+    console.log('\n[6/6] LIMPEZA RIGOROSA DE ARTEFATOS EFÊMEROS (ZERO RESÍDUOS)');
     await client.query(`DELETE FROM inventory_balances WHERE warehouse_code = $1;`, [testWarehouse]);
+    await client.query(`DELETE FROM warehouses WHERE code = $1;`, [testWarehouse]);
     await client.query(`DELETE FROM products WHERE sku = $1;`, [testSku]);
     await client.query(`DELETE FROM invoices WHERE numero = $1;`, [testInvNumber]);
-    console.log('✓ Todos os registros de teste foram completamente removidos. Banco de dados 100% limpo.');
+
+    // Verify absence of residues
+    const resWh = await client.query(`SELECT COUNT(*) FROM warehouses WHERE code = $1;`, [testWarehouse]);
+    const resBal = await client.query(`SELECT COUNT(*) FROM inventory_balances WHERE warehouse_code = $1;`, [testWarehouse]);
+    const resProd = await client.query(`SELECT COUNT(*) FROM products WHERE sku = $1;`, [testSku]);
+    const resInv = await client.query(`SELECT COUNT(*) FROM invoices WHERE numero = $1;`, [testInvNumber]);
+
+    const totalResidues = parseInt(resWh.rows[0].count) + parseInt(resBal.rows[0].count) + parseInt(resProd.rows[0].count) + parseInt(resInv.rows[0].count);
+    if (totalResidues === 0) {
+      console.log('✓ Ausência total de resíduos comprovada por asserção SQL (0 registros remanescentes).');
+    } else {
+      console.error(`⚠️ ATENÇÃO: Resíduos detectados (${totalResidues} registros).`);
+    }
+
     await client.end();
   }
 
   console.log('\n===============================================================');
-  console.log('TESTES ISOLADOS CONCLUÍDOS COM SUCESSO E LIMPEZA TOTAL!');
+  console.log('TESTES ISOLADOS EM STAGING CONCLUÍDOS COM SUCESSO E ZERO RESÍDUOS!');
   console.log('===============================================================');
 }
 
