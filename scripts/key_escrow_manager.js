@@ -13,8 +13,8 @@ function createEscrowPackage(rawKey, masterPassphrase) {
   if (!rawKey || typeof rawKey !== 'string' || rawKey.length < 16) {
     throw new Error('Chave de backup inválida para criação do escrow.');
   }
-  if (!masterPassphrase || typeof masterPassphrase !== 'string' || masterPassphrase.length < 8) {
-    throw new Error('Master Passphrase fraca ou ausente (mínimo 8 caracteres).');
+  if (!masterPassphrase || typeof masterPassphrase !== 'string' || masterPassphrase.length < 16) {
+    throw new Error('Master Passphrase fraca ou ausente (mínimo 16 caracteres de alta entropia).');
   }
 
   const salt = crypto.randomBytes(16);
