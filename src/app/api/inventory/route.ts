@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  getErpState,
+  getAuthoritativeErpState,
   transferInventory,
   batchReceiveBraspress,
   batchReceiveFba,
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, message: auth.reason }, { status: 403 });
     }
 
-    const state = getErpState();
+    const state = await getAuthoritativeErpState();
 
     // Compute warehouse summary
     const warehouseSummary = Object.keys(WAREHOUSES).map((code) => {
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'batch_receive_braspress') {
-      const result = batchReceiveBraspress();
+      const result = await batchReceiveBraspress();
       return NextResponse.json({
         ok: result.success,
         message: result.message,
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'batch_receive_fba') {
-      const result = batchReceiveFba();
+      const result = await batchReceiveFba();
       return NextResponse.json({
         ok: result.success,
         message: result.message,

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getReturnsState, addReturnRecord } from '@/lib/erpStore';
+import { getAuthoritativeErpState, addReturnRecord } from '@/lib/erpStore';
 import { validateApiRequest } from '@/lib/authGuard';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const returns = getReturnsState();
+    const state = await getAuthoritativeErpState();
+    const returns = state.returns || [];
     return NextResponse.json({
       success: true,
       count: returns.length,

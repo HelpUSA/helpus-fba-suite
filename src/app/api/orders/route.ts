@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getErpState, recordSaleOrder } from '@/lib/erpStore';
+import { getAuthoritativeErpState, recordSaleOrder } from '@/lib/erpStore';
 import { validateApiRequest } from '@/lib/authGuard';
 
 export async function GET(req: NextRequest) {
@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, message: auth.reason }, { status: 403 });
     }
 
-    const state = getErpState();
+    const state = await getAuthoritativeErpState();
     return NextResponse.json({
       ok: true,
       orders: state.orders || [],

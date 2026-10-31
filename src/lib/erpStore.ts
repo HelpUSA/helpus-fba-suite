@@ -19,6 +19,9 @@ import {
   persistStockTransferPostgres,
   persistNfeInboundPostgres,
   persistReturnPostgres,
+  persistBatchReceiveBraspressPostgres,
+  persistBatchReceiveFbaPostgres,
+  fetchAuthoritativePostgresState,
 } from './db/postgresClient';
 
 export * from './erpTypes';
@@ -387,22 +390,50 @@ export function getErpState(): ErpDatabaseState {
   return JSON.parse(JSON.stringify(inMemoryDbState));
 }
 
+/**
+ * Authoritative ERP state reader (Order 014 - Finding 1).
+ * Reads directly from PostgreSQL tables when DATABASE_URL is configured.
+ */
+export async function getAuthoritativeErpState(): Promise<ErpDatabaseState> {
+  if (isPostgresConfigured()) {
+    try {
+      const pgState = await fetchAuthoritativePostgresState();
+      if (pgState) {
+        inMemoryDbState = pgState;
+        return pgState;
+      }
+    } catch (err) {
+      console.error('[ErpStore] Falha ao consultar estado autoritativo do PostgreSQL:', err);
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('[PostgreSQL Indisponível] Falha ao consultar estado autoritativo do banco de dados em produção.');
+      }
+    }
+  }
+  return getErpState();
+}
+
 export function saveErpState(state: ErpDatabaseState): void {
   const isVercelServerless = Boolean(process.env.VERCEL) || (typeof process !== 'undefined' && process.cwd && process.cwd().startsWith('/var/task'));
   const hasPostgres = isPostgresConfigured();
 
-  // Fail-Closed Governance (Finding 2 - Order 013):
-  // /tmp is strictly ephemeral scratch space and cannot be used as an authoritative persistent fallback.
-  // In production serverless, writes must target PostgreSQL or fail safely.
-  if (isVercelServerless && !hasPostgres && process.env.NODE_ENV === 'production') {
+  // Fail-Closed Governance (Finding 2 - Order 013 & Order 014):
+  // When PostgreSQL is configured, it is the sole authority; in-memory cache is synchronized,
+  // and secondary disk write is non-fatal to avoid throwing HTTP 500 after SQL COMMIT.
+  state.storageEngine = hasPostgres ? 'POSTGRES' : (isVercelServerless ? 'EPHEMERAL_CACHE' : 'PERSISTENT_JSON');
+  state.lastUpdated = new Date().toISOString();
+  inMemoryDbState = JSON.parse(JSON.stringify(state));
+
+  if (hasPostgres) {
+    // Zero dual-write risk: PostgreSQL has committed; memory cache is updated.
+    return;
+  }
+
+  // In production serverless without PostgreSQL, reject mutations immediately.
+  if (isVercelServerless && process.env.NODE_ENV === 'production') {
     throw new Error(
       '[Persistência Fail-Closed] Gravação bloqueada: PostgreSQL não configurado no ambiente de produção Vercel. Operações mutativas do ERP exigem banco relacional definitivo para evitar perda silenciosa de dados.'
     );
   }
-
-  state.storageEngine = hasPostgres ? 'POSTGRES' : (isVercelServerless ? 'EPHEMERAL_CACHE' : 'PERSISTENT_JSON');
-  state.lastUpdated = new Date().toISOString();
-  inMemoryDbState = JSON.parse(JSON.stringify(state));
 
   const filePath = getResolvedDbFilePath();
   try {
@@ -598,7 +629,24 @@ export async function transferInventory(
   };
 }
 
-export function batchReceiveBraspress(): { success: boolean; movedCount: number; totalUnits: number; message: string } {
+export async function batchReceiveBraspress(): Promise<{ success: boolean; movedCount: number; totalUnits: number; message: string }> {
+  const isVercelServerless = Boolean(process.env.VERCEL) || (typeof process !== 'undefined' && process.cwd && process.cwd().startsWith('/var/task'));
+  const hasPostgres = isPostgresConfigured();
+
+  if (isVercelServerless && !hasPostgres && process.env.NODE_ENV === 'production') {
+    throw new Error('[Persistência Fail-Closed] Recebimento em lote bloqueado: PostgreSQL não configurado no ambiente de produção.');
+  }
+
+  if (hasPostgres) {
+    const res = await persistBatchReceiveBraspressPostgres();
+    return {
+      success: true,
+      movedCount: res.movedCount,
+      totalUnits: res.totalUnits,
+      message: `Sucesso! Recebidas ${res.totalUnits} unidades (${res.movedCount} SKUs) na Base Bessa via transação PostgreSQL.`,
+    };
+  }
+
   const state = getErpState();
   let movedCount = 0;
   let totalUnits = 0;
@@ -655,7 +703,23 @@ export function batchReceiveBraspress(): { success: boolean; movedCount: number;
   };
 }
 
-export function batchReceiveFba(): { success: boolean; totalUnits: number; message: string } {
+export async function batchReceiveFba(): Promise<{ success: boolean; totalUnits: number; message: string }> {
+  const isVercelServerless = Boolean(process.env.VERCEL) || (typeof process !== 'undefined' && process.cwd && process.cwd().startsWith('/var/task'));
+  const hasPostgres = isPostgresConfigured();
+
+  if (isVercelServerless && !hasPostgres && process.env.NODE_ENV === 'production') {
+    throw new Error('[Persistência Fail-Closed] Recebimento FBA bloqueado: PostgreSQL não configurado no ambiente de produção.');
+  }
+
+  if (hasPostgres) {
+    const res = await persistBatchReceiveFbaPostgres();
+    return {
+      success: true,
+      totalUnits: res.totalUnits,
+      message: `Sucesso! ${res.totalUnits} unidades transferidas e auditadas no Amazon FBA RYY2 via transação PostgreSQL.`,
+    };
+  }
+
   const state = getErpState();
   let totalUnits = 0;
   const now = new Date().toISOString();

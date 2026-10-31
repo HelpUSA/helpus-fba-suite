@@ -7,6 +7,7 @@ import {
   ReturnRecord,
   WarehouseCode,
   ErpDatabaseState,
+  NATIVOS_SKU_CATALOG,
 } from '../erpTypes';
 import { NfeData } from '../nfeParser';
 
@@ -403,39 +404,68 @@ export async function persistNfeInboundPostgres(nfe: NfeData): Promise<string> {
       ]
     );
 
-    // 3. Process items and balances
+    // 3. Process items and balances with deterministic De-Para catalog resolution
     for (const it of nfe.itens) {
       const unitCost = it.vUnCom;
 
-      // Insert invoice item
+      // Deterministic catalog mapping (Finding 4 - Order 014)
+      const cleanCode = it.cProd.replace(/\D/g, '').slice(-3);
+      const catalogEntry = NATIVOS_SKU_CATALOG[cleanCode];
+      let resolvedSku = catalogEntry ? catalogEntry.sku : `NAT-${it.cProd.replace(/[^a-zA-Z0-9-]/g, '')}`;
+
+      if (!catalogEntry) {
+        const descUpper = it.xProd.toUpperCase();
+        if (descUpper.includes('RESVERATROL')) resolvedSku = 'NAT-RESV-60CAPS';
+        else if (descUpper.includes('TREONATO')) resolvedSku = 'NAT-MAG-TREON-60C';
+        else if (descUpper.includes('CO-Q10') || descUpper.includes('CQ10')) resolvedSku = 'NAT-COQ10-VITE-60C';
+        else if (descUpper.includes('COLAGENO')) resolvedSku = 'NAT-COLAG-VITC-60C';
+        else if (descUpper.includes('6 MAGNESIOS')) resolvedSku = 'NAT-6MAG-60C';
+        else if (descUpper.includes('ACETILCISTEINA') || descUpper.includes('NAC')) resolvedSku = 'NAT-NAC-60C';
+      }
+
+      // Ensure product exists in products table to maintain FK integrity
+      await client.query(
+        `INSERT INTO products (sku, title, marketplace, currency, unit_cost, sale_price, supplier_name)
+         VALUES ($1, $2, 'Amazon BR', 'BRL', $3, $4, $5)
+         ON CONFLICT (sku) DO UPDATE SET unit_cost = EXCLUDED.unit_cost, updated_at = NOW()`,
+        [
+          resolvedSku,
+          catalogEntry?.title || it.xProd,
+          unitCost,
+          catalogEntry?.defaultSalePrice || parseFloat((unitCost * 2.5).toFixed(2)),
+          nfe.emitente.razaoSocial,
+        ]
+      );
+
+      // Insert invoice item with resolved SKU
       await client.query(
         `INSERT INTO invoice_items (invoice_id, sku, descricao, quantidade, valor_unitario, custo_efetivo_unitario)
          VALUES ($1, $2, $3, $4, $5, $6)`,
-        [invoiceId, it.cProd, it.xProd, it.qCom, it.vUnCom, unitCost]
+        [invoiceId, resolvedSku, it.xProd, it.qCom, it.vUnCom, unitCost]
       );
 
-      // Increment inventory balance in WH-BR-TRANSIT-BRASPRESS
+      // Increment inventory balance in WH-BR-TRANSIT-BRASPRESS using resolved SKU
       await client.query(
         `INSERT INTO inventory_balances (product_sku, warehouse_code, quantity, updated_at)
          VALUES ($1, 'WH-BR-TRANSIT-BRASPRESS', $2, NOW())
          ON CONFLICT (product_sku, warehouse_code)
          DO UPDATE SET quantity = inventory_balances.quantity + EXCLUDED.quantity, updated_at = NOW()`,
-        [it.cProd, it.qCom]
+        [resolvedSku, it.qCom]
       );
 
-      // Insert stock movement
-      const movId = `mov-nfe-${Date.now()}-${it.cProd}`;
+      // Insert stock movement with resolved SKU
+      const movId = `mov-nfe-${Date.now()}-${resolvedSku}`;
       await client.query(
         `INSERT INTO stock_movements (id, timestamp, sku, product_title, movement_type, to_warehouse, quantity, unit_cost, document_ref, notes)
          VALUES ($1, NOW(), $2, $3, 'INBOUND_NFE', 'WH-BR-TRANSIT-BRASPRESS', $4, $5, $6, $7)`,
         [
           movId,
-          it.cProd,
-          it.xProd,
+          resolvedSku,
+          catalogEntry?.title || it.xProd,
           it.qCom,
           unitCost,
           `NF-e ${nfe.numeroNF}`,
-          `Entrada fiscal NF-e ${nfe.numeroNF} de ${nfe.emitente.razaoSocial}.`,
+          `Entrada fiscal NF-e ${nfe.numeroNF} de ${nfe.emitente.razaoSocial} (cProd: ${it.cProd} -> SKU: ${resolvedSku}).`,
         ]
       );
     }
@@ -495,5 +525,117 @@ export async function persistReturnPostgres(record: ReturnRecord): Promise<void>
         ]
       );
     }
+  });
+}
+
+/**
+ * Persist bulk Braspress freight transfer to JPA Base in PostgreSQL within an ACID transaction.
+ */
+export async function persistBatchReceiveBraspressPostgres(): Promise<{ movedCount: number; totalUnits: number }> {
+  return await withTransaction(async (client) => {
+    // 1. Lock rows in WH-BR-TRANSIT-BRASPRESS FOR UPDATE
+    const rowsRes = await client.query(
+      `SELECT b.product_sku, b.quantity, p.title, p.unit_cost
+       FROM inventory_balances b
+       JOIN products p ON p.sku = b.product_sku
+       WHERE b.warehouse_code = 'WH-BR-TRANSIT-BRASPRESS' AND b.quantity > 0
+       FOR UPDATE`
+    );
+
+    let movedCount = 0;
+    let totalUnits = 0;
+
+    for (const row of rowsRes.rows) {
+      const sku = row.product_sku;
+      const qty = Number(row.quantity);
+      const title = row.title;
+      const unitCost = parseFloat(row.unit_cost);
+
+      if (qty <= 0) continue;
+
+      // Decrement source transit
+      await client.query(
+        `UPDATE inventory_balances SET quantity = quantity - $1, updated_at = NOW()
+         WHERE product_sku = $2 AND warehouse_code = 'WH-BR-TRANSIT-BRASPRESS'`,
+        [qty, sku]
+      );
+
+      // Increment destination JPA Base (UPSERT)
+      await client.query(
+        `INSERT INTO inventory_balances (product_sku, warehouse_code, quantity, updated_at)
+         VALUES ($1, 'WH-BR-LOCAL-JPA', $2, NOW())
+         ON CONFLICT (product_sku, warehouse_code)
+         DO UPDATE SET quantity = inventory_balances.quantity + EXCLUDED.quantity, updated_at = NOW()`,
+        [sku, qty]
+      );
+
+      // Insert stock movement
+      const movId = `mov-batch-br-${Date.now()}-${sku}`;
+      await client.query(
+        `INSERT INTO stock_movements (id, timestamp, sku, product_title, movement_type, from_warehouse, to_warehouse, quantity, unit_cost, notes)
+         VALUES ($1, NOW(), $2, $3, 'TRANSFER', 'WH-BR-TRANSIT-BRASPRESS', 'WH-BR-LOCAL-JPA', $4, $5, $6)`,
+        [movId, sku, title, qty, unitCost, 'Recebimento e conferência física em lote da carga Braspress no CD HelpUS Bessa (JPA).']
+      );
+
+      movedCount++;
+      totalUnits += qty;
+    }
+
+    return { movedCount, totalUnits };
+  });
+}
+
+/**
+ * Persist bulk Prep Ninjas transfer to Amazon FBA RYY2 in PostgreSQL within an ACID transaction.
+ */
+export async function persistBatchReceiveFbaPostgres(): Promise<{ totalUnits: number }> {
+  return await withTransaction(async (client) => {
+    // 1. Lock rows in WH-USA-PREP FOR UPDATE
+    const rowsRes = await client.query(
+      `SELECT b.product_sku, b.quantity, p.title, p.unit_cost
+       FROM inventory_balances b
+       JOIN products p ON p.sku = b.product_sku
+       WHERE b.warehouse_code = 'WH-USA-PREP' AND b.quantity > 0
+       FOR UPDATE`
+    );
+
+    let totalUnits = 0;
+
+    for (const row of rowsRes.rows) {
+      const sku = row.product_sku;
+      const qty = Number(row.quantity);
+      const title = row.title;
+      const unitCost = parseFloat(row.unit_cost);
+
+      if (qty <= 0) continue;
+
+      // Decrement source WH-USA-PREP
+      await client.query(
+        `UPDATE inventory_balances SET quantity = quantity - $1, updated_at = NOW()
+         WHERE product_sku = $2 AND warehouse_code = 'WH-USA-PREP'`,
+        [qty, sku]
+      );
+
+      // Increment destination WH-USA-FBA-RYY2
+      await client.query(
+        `INSERT INTO inventory_balances (product_sku, warehouse_code, quantity, updated_at)
+         VALUES ($1, 'WH-USA-FBA-RYY2', $2, NOW())
+         ON CONFLICT (product_sku, warehouse_code)
+         DO UPDATE SET quantity = inventory_balances.quantity + EXCLUDED.quantity, updated_at = NOW()`,
+        [sku, qty]
+      );
+
+      // Insert stock movement
+      const movId = `mov-batch-fba-${Date.now()}-${sku}`;
+      await client.query(
+        `INSERT INTO stock_movements (id, timestamp, sku, product_title, movement_type, from_warehouse, to_warehouse, quantity, unit_cost, notes)
+         VALUES ($1, NOW(), $2, $3, 'TRANSFER', 'WH-USA-PREP', 'WH-USA-FBA-RYY2', $4, $5, $6)`,
+        [movId, sku, title, qty, unitCost, 'Transferência e recepção física em lote de Prep Ninjas para o centro FBA RYY2 (White, GA).']
+      );
+
+      totalUnits += qty;
+    }
+
+    return { totalUnits };
   });
 }

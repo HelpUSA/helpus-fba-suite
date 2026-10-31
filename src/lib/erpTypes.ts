@@ -38,6 +38,48 @@ export const WAREHOUSES: Record<WarehouseCode, WarehouseInfo> = {
   },
 };
 
+export const NATIVOS_SKU_CATALOG: Record<
+  string,
+  { sku: string; title: string; defaultSalePrice: number; defaultCost: number }
+> = {
+  '001': {
+    sku: 'NAT-RESV-60CAPS',
+    title: 'Resveratrol Softgel 60 Cápsulas - Nativos do Brasil',
+    defaultSalePrice: 79.9,
+    defaultCost: 25.76,
+  },
+  '002': {
+    sku: 'NAT-MAG-TREON-60C',
+    title: 'Magnésio L-Treonato 60 Cápsulas - Nativos do Brasil',
+    defaultSalePrice: 59.9,
+    defaultCost: 15.8,
+  },
+  '003': {
+    sku: 'NAT-COQ10-VITE-60C',
+    title: 'Co-Q10 com Vitamina E 60 Cápsulas - Nativos do Brasil',
+    defaultSalePrice: 69.9,
+    defaultCost: 21.26,
+  },
+  '004': {
+    sku: 'NAT-COLAG-VITC-60C',
+    title: 'Colágeno Hidrolisado com Vit C 60 Cápsulas - Nativos do Brasil',
+    defaultSalePrice: 54.9,
+    defaultCost: 17.93,
+  },
+  '005': {
+    sku: 'NAT-6MAG-60C',
+    title: '6 Magnésios Quelato & Complex 60 Cápsulas - Nativos do Brasil',
+    defaultSalePrice: 59.9,
+    defaultCost: 18.41,
+  },
+  '006': {
+    sku: 'NAT-NAC-60C',
+    title: 'NAC Acetilcisteína 60 Cápsulas - Nativos do Brasil',
+    defaultSalePrice: 54.9,
+    defaultCost: 17.57,
+  },
+};
+
 export interface InventoryItem {
   id: string;
   sku: string;
