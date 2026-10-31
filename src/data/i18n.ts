@@ -18,6 +18,8 @@ export interface TranslationDictionary {
   navBrasil: string;
   navNfe: string;
   navEstoque: string;
+  navDre: string;
+  navDevolucoes: string;
   navCalculator: string;
   navPrepTracker: string;
   navSuppliers: string;
@@ -233,6 +235,8 @@ export const i18n: Record<Language, TranslationDictionary> = {
     navBrasil: '🇧🇷 Operação Brasil (NF-e)',
     navNfe: 'Entrada de Notas (XML)',
     navEstoque: 'Estoque Multi-Armazém',
+    navDre: 'DRE & P&L Financeiro',
+    navDevolucoes: 'Devoluções & Avarias',
     navCalculator: 'Calculadora FBA & Prep',
     navPrepTracker: 'Rastreio & Logística',
     navSuppliers: 'Fornecedores Homologados',
@@ -447,6 +451,8 @@ export const i18n: Record<Language, TranslationDictionary> = {
     navBrasil: '🇧🇷 Brazil Operation (NF-e)',
     navNfe: 'Inbound Invoices (XML)',
     navEstoque: 'Multi-Warehouse Stock',
+    navDre: 'Financial P&L & DRE',
+    navDevolucoes: 'Returns & Damages',
     navCalculator: 'FBA & Prep Calculator',
     navPrepTracker: 'Logistics & Tracking',
     navSuppliers: 'Verified Suppliers',
@@ -661,6 +667,8 @@ export const i18n: Record<Language, TranslationDictionary> = {
     navBrasil: '🇧🇷 Operación Brasil (NF-e)',
     navNfe: 'Entrada de Facturas (XML)',
     navEstoque: 'Inventario Multi-Almacén',
+    navDre: 'P&L y DRE Financiero',
+    navDevolucoes: 'Devoluciones y Averías',
     navCalculator: 'Calculadora FBA y Prep',
     navPrepTracker: 'Seguimiento y Logística',
     navSuppliers: 'Proveedores Homologados',

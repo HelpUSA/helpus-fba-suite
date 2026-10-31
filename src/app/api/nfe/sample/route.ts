@@ -3,19 +3,26 @@ import fs from 'fs';
 import path from 'path';
 
 export async function GET() {
-  const samplePath = 'D:\\AntiG\\Amazon Seller\\docs\\01_Operacao_Brasil_Nativos\\NF_00002509_Nativos.xml';
+  const candidatePaths = [
+    path.join(process.cwd(), 'src', 'data', 'samples', 'NF_00002509_Nativos.xml'),
+    path.join(process.cwd(), 'data', 'samples', 'NF_00002509_Nativos.xml'),
+    'D:\\AntiG\\Amazon Seller\\docs\\01_Operacao_Brasil_Nativos\\NF_00002509_Nativos.xml',
+  ];
 
-  try {
-    if (fs.existsSync(samplePath)) {
-      const xmlContent = fs.readFileSync(samplePath, 'utf-8');
-      return NextResponse.json({
-        ok: true,
-        filename: 'NF_00002509_Nativos.xml',
-        xmlContent,
-      });
+  for (const samplePath of candidatePaths) {
+    try {
+      if (fs.existsSync(/*turbopackIgnore: true*/ samplePath)) {
+        const xmlContent = fs.readFileSync(/*turbopackIgnore: true*/ samplePath, 'utf-8');
+        return NextResponse.json({
+          ok: true,
+          filename: 'NF_00002509_Nativos.xml',
+          xmlContent,
+          resolvedPath: path.basename(samplePath),
+        });
+      }
+    } catch (error) {
+      console.warn(`Could not read sample NF-e at ${samplePath}:`, error);
     }
-  } catch (error) {
-    console.error('Error reading sample NF-e:', error);
   }
 
   return NextResponse.json(

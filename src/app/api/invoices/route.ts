@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getErpState, registerUsCommercialInvoice } from '@/lib/erpStore';
+import { validateApiRequest } from '@/lib/authGuard';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const auth = validateApiRequest(req, false);
+    if (!auth.authorized) {
+      return NextResponse.json({ ok: false, message: auth.reason }, { status: 403 });
+    }
+
     const state = getErpState();
     return NextResponse.json({
       ok: true,
@@ -18,6 +24,11 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = validateApiRequest(req, true);
+    if (!auth.authorized) {
+      return NextResponse.json({ ok: false, message: auth.reason || 'Não autorizado para importar invoices.' }, { status: 403 });
+    }
+
     const body = await req.json();
     const { invoiceNumber, vendorName, vendorDoc, items, shippingCost, prepCost, date } = body;
 

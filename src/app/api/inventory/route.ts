@@ -8,9 +8,15 @@ import {
   WAREHOUSES,
   WarehouseCode,
 } from '@/lib/erpStore';
+import { validateApiRequest } from '@/lib/authGuard';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const auth = validateApiRequest(req, false);
+    if (!auth.authorized) {
+      return NextResponse.json({ ok: false, message: auth.reason }, { status: 403 });
+    }
+
     const state = getErpState();
 
     // Compute warehouse summary
@@ -45,6 +51,11 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = validateApiRequest(req, true);
+    if (!auth.authorized) {
+      return NextResponse.json({ ok: false, message: auth.reason || 'Não autorizado para mutação de estoque.' }, { status: 403 });
+    }
+
     const body = await req.json();
     const { action, sku, fromWarehouse, toWarehouse, quantity, notes, orderNumber, marketplace, customerCity, salePrice } = body;
 

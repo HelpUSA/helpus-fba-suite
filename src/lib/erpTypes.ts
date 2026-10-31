@@ -53,6 +53,8 @@ export interface InventoryItem {
   balances: Record<WarehouseCode, number>;
   totalStock: number;
   reorderPoint: number;
+  isDemo?: boolean;
+  environment?: 'production' | 'sandbox';
 }
 
 export interface StockMovement {
@@ -67,6 +69,7 @@ export interface StockMovement {
   unitCost?: number;
   documentRef?: string;
   notes?: string;
+  isDemo?: boolean;
 }
 
 export interface StoredInvoice {
@@ -83,6 +86,7 @@ export interface StoredInvoice {
   moeda: 'BRL' | 'USD';
   status: 'PROCESSADA' | 'EM_TRANSITO' | 'CONCILIADA';
   itensCount: number;
+  isDemo?: boolean;
   detalhesItens: Array<{
     sku: string;
     descricao: string;
@@ -106,6 +110,50 @@ export interface SaleOrder {
   customerCity: string;
   warehouseSource: WarehouseCode;
   status: 'CONFIRMED' | 'DELIVERED';
+  isDemo?: boolean;
+}
+
+export interface ReturnRecord {
+  id: string;
+  returnDate: string;
+  orderNumber?: string;
+  sku: string;
+  productTitle: string;
+  quantity: number;
+  reason: 'CUSTOMER_DEFECT' | 'DAMAGED_CARRIER' | 'WRONG_ITEM' | 'CUSTOMER_REMORSE' | 'LOST_IN_TRANSIT';
+  disposition: 'SELLABLE' | 'DEFECTIVE' | 'CARRIER_DAMAGED' | 'CUSTOMER_DAMAGED';
+  warehouse: WarehouseCode;
+  status: 'RECEIVED' | 'INSPECTION' | 'RESTOCKED' | 'REIMBURSEMENT_CLAIMED' | 'REIMBURSED' | 'DISPOSED';
+  reimbursementAmount?: number;
+  currency: 'USD' | 'BRL';
+  notes?: string;
+  isDemo?: boolean;
+}
+
+export interface DreStatement {
+  period: string;
+  country: 'US' | 'BR' | 'CONSOLIDATED';
+  currency: 'USD' | 'BRL';
+  ptaxRate: number;
+  grossRevenue: number;
+  deductions: {
+    marketplaceFees: number;
+    fulfillmentFees: number;
+    taxes: number;
+    totalDeductions: number;
+  };
+  netRevenue: number;
+  cogs: number;
+  grossProfit: number;
+  grossMarginPercent: number;
+  operatingExpenses: {
+    prepFees: number;
+    storageFees: number;
+    inboundFreight: number;
+    totalOpEx: number;
+  };
+  netOperatingIncome: number;
+  netMarginPercent: number;
 }
 
 export interface ErpDatabaseState {
@@ -115,4 +163,6 @@ export interface ErpDatabaseState {
   movements: StockMovement[];
   invoices: StoredInvoice[];
   orders?: SaleOrder[];
+  returns?: ReturnRecord[];
+  storageEngine?: 'POSTGRES' | 'PERSISTENT_JSON' | 'EPHEMERAL_CACHE';
 }

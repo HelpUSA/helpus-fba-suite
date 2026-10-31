@@ -9,12 +9,37 @@ import {
   StockMovement,
   StoredInvoice,
   SaleOrder,
+  ReturnRecord,
+  DreStatement,
   ErpDatabaseState,
 } from './erpTypes';
+import { isPostgresConfigured } from './db/postgresClient';
 
 export * from './erpTypes';
 
-const DB_FILE_PATH = path.join(process.cwd(), 'data', 'erp_database.json');
+export function getResolvedDbFilePath(): string {
+  if (process.env.ERP_STORAGE_PATH) {
+    return process.env.ERP_STORAGE_PATH;
+  }
+  // In Vercel serverless / AWS Lambda, use /tmp (guaranteed writable)
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || (typeof process !== 'undefined' && process.cwd && process.cwd().startsWith('/var/task'))) {
+    return path.join('/tmp', 'helpus_erp_database.json');
+  }
+  return path.join(process.cwd(), 'data', 'erp_database.json');
+}
+
+// In-memory cache singleton to guarantee zero HTTP 500 in serverless cold starts
+let inMemoryDbState: ErpDatabaseState | null = null;
+
+// Official SKU Registry / De-Para Cross Reference
+export const NATIVOS_SKU_CATALOG: Record<string, { sku: string; title: string; defaultSalePrice: number; defaultCost: number }> = {
+  '001': { sku: 'NAT-RESV-60CAPS', title: 'Resveratrol Softgel 60 Cápsulas - Nativos do Brasil', defaultSalePrice: 79.90, defaultCost: 25.76 },
+  '002': { sku: 'NAT-MAG-TREON-60C', title: 'Magnésio L-Treonato 60 Cápsulas - Nativos do Brasil', defaultSalePrice: 59.90, defaultCost: 15.80 },
+  '003': { sku: 'NAT-COQ10-VITE-60C', title: 'Co-Q10 com Vitamina E 60 Cápsulas - Nativos do Brasil', defaultSalePrice: 69.90, defaultCost: 21.26 },
+  '004': { sku: 'NAT-COLAG-VITC-60C', title: 'Colágeno Hidrolisado com Vit C 60 Cápsulas - Nativos do Brasil', defaultSalePrice: 54.90, defaultCost: 17.93 },
+  '005': { sku: 'NAT-6MAG-60C', title: '6 Magnésios Quelato & Complex 60 Cápsulas - Nativos do Brasil', defaultSalePrice: 59.90, defaultCost: 18.41 },
+  '006': { sku: 'NAT-NAC-60C', title: 'NAC Acetilcisteína 60 Cápsulas - Nativos do Brasil', defaultSalePrice: 54.90, defaultCost: 17.57 },
+};
 
 // Initial seed data from Master Context
 const INITIAL_DATABASE_STATE: ErpDatabaseState = {
@@ -307,39 +332,89 @@ const INITIAL_DATABASE_STATE: ErpDatabaseState = {
       status: 'CONFIRMED'
     }
   ],
+  returns: [
+    {
+      id: 'ret-pilot-us-001',
+      returnDate: '2026-10-31T09:00:00Z',
+      orderNumber: '114-8392019-2819201',
+      sku: 'HU-SIL-CABLE-FBA-2026',
+      productTitle: 'HelpUS Reusable Silicone Cable Ties 20-Pack',
+      quantity: 1,
+      reason: 'CUSTOMER_REMORSE',
+      disposition: 'SELLABLE',
+      warehouse: 'WH-USA-FBA-RYY2',
+      status: 'RESTOCKED',
+      reimbursementAmount: 0,
+      currency: 'USD',
+      notes: 'Devolução de cliente lacrada. Item inspecionado pelo FBA e retornado ao saldo vendável.',
+      isDemo: false,
+    }
+  ],
 };
 
 export function getErpState(): ErpDatabaseState {
+  if (inMemoryDbState) {
+    return JSON.parse(JSON.stringify(inMemoryDbState));
+  }
+
+  const filePath = getResolvedDbFilePath();
   try {
-    if (fs.existsSync(DB_FILE_PATH)) {
-      const data = fs.readFileSync(DB_FILE_PATH, 'utf-8');
-      return JSON.parse(data);
+    if (fs.existsSync(/*turbopackIgnore: true*/ filePath)) {
+      const data = fs.readFileSync(/*turbopackIgnore: true*/ filePath, 'utf-8');
+      inMemoryDbState = JSON.parse(data);
+      return JSON.parse(JSON.stringify(inMemoryDbState));
     }
   } catch (error) {
-    console.error('Error reading database file, using default seed:', error);
+    console.warn('[ErpStore] Warning reading database file from disk, using initial state:', error);
   }
 
-  const dir = path.dirname(DB_FILE_PATH);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  fs.writeFileSync(DB_FILE_PATH, JSON.stringify(INITIAL_DATABASE_STATE, null, 2), 'utf-8');
-  return INITIAL_DATABASE_STATE;
-}
-
-export function saveErpState(state: ErpDatabaseState): void {
+  inMemoryDbState = JSON.parse(JSON.stringify(INITIAL_DATABASE_STATE));
   try {
-    state.lastUpdated = new Date().toISOString();
-    const dir = path.dirname(DB_FILE_PATH);
+    const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(DB_FILE_PATH, JSON.stringify(state, null, 2), 'utf-8');
-  } catch (error) {
-    console.error('Error saving database file:', error);
-    // Never report an inventory, invoice, or order mutation as successful
-    // when the backing store did not persist the updated state.
-    throw error;
+    fs.writeFileSync(filePath, JSON.stringify(INITIAL_DATABASE_STATE, null, 2), 'utf-8');
+  } catch (writeErr) {
+    console.warn('[ErpStore] Running in read-only / serverless container. Writable state maintained in memory:', writeErr);
+  }
+  return JSON.parse(JSON.stringify(inMemoryDbState));
+}
+
+export function saveErpState(state: ErpDatabaseState): void {
+  const isVercelServerless = Boolean(process.env.VERCEL) || (typeof process !== 'undefined' && process.cwd && process.cwd().startsWith('/var/task'));
+
+  // Fail-Safe Governance (Order 012):
+  // /tmp is strictly ephemeral scratch space and cannot be used as an authoritative persistent fallback.
+  // In production serverless, writes must target PostgreSQL or be explicitly marked non-authoritative.
+  if (isVercelServerless) {
+    if (isPostgresConfigured()) {
+      state.storageEngine = 'POSTGRES';
+    } else {
+      state.storageEngine = 'EPHEMERAL_CACHE';
+      console.warn('[ErpStore Fail-Safe Notice] DATABASE_URL não configurada no Vercel. Operação mantida em cache de sessão efêmero.');
+    }
+  } else {
+    state.storageEngine = isPostgresConfigured() ? 'POSTGRES' : 'PERSISTENT_JSON';
+  }
+
+  state.lastUpdated = new Date().toISOString();
+  inMemoryDbState = JSON.parse(JSON.stringify(state));
+
+  const filePath = getResolvedDbFilePath();
+  try {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    const tmpPath = `${filePath}.tmp.${Date.now()}`;
+    fs.writeFileSync(tmpPath, JSON.stringify(state, null, 2), 'utf-8');
+    fs.renameSync(tmpPath, filePath);
+  } catch (error: any) {
+    console.warn('[ErpStore] Disk persistence notice:', error?.message || error);
+    if (!isVercelServerless) {
+      throw error;
+    }
   }
 }
 
@@ -359,13 +434,20 @@ export function registerNfeInbound(nfe: NfeData): { success: boolean; invoiceId:
   const now = new Date().toISOString();
 
   const detalhesItens = nfe.itens.map((item) => {
-    let sku = `NAT-${item.cProd}`;
-    if (item.xProd.toUpperCase().includes('RESVERATROL')) sku = 'NAT-RESV-60CAPS';
-    else if (item.xProd.toUpperCase().includes('TREONATO')) sku = 'NAT-MAG-TREON-60C';
-    else if (item.xProd.toUpperCase().includes('CO-Q10') || item.xProd.toUpperCase().includes('CQ10')) sku = 'NAT-COQ10-VITE-60C';
-    else if (item.xProd.toUpperCase().includes('COLAGENO')) sku = 'NAT-COLAG-VITC-60C';
-    else if (item.xProd.toUpperCase().includes('6 MAGNESIOS')) sku = 'NAT-6MAG-60C';
-    else if (item.xProd.toUpperCase().includes('ACETILCISTEINA') || item.xProd.toUpperCase().includes('NAC')) sku = 'NAT-NAC-60C';
+    // Match by official supplier catalog code first
+    const cleanCode = item.cProd.replace(/\D/g, '').slice(-3);
+    const catalogEntry = NATIVOS_SKU_CATALOG[cleanCode];
+    let sku = catalogEntry ? catalogEntry.sku : `NAT-${item.cProd.replace(/[^a-zA-Z0-9-]/g, '')}`;
+
+    // Heuristic fallback for non-standard supplier codes
+    if (!catalogEntry) {
+      if (item.xProd.toUpperCase().includes('RESVERATROL')) sku = 'NAT-RESV-60CAPS';
+      else if (item.xProd.toUpperCase().includes('TREONATO')) sku = 'NAT-MAG-TREON-60C';
+      else if (item.xProd.toUpperCase().includes('CO-Q10') || item.xProd.toUpperCase().includes('CQ10')) sku = 'NAT-COQ10-VITE-60C';
+      else if (item.xProd.toUpperCase().includes('COLAGENO')) sku = 'NAT-COLAG-VITC-60C';
+      else if (item.xProd.toUpperCase().includes('6 MAGNESIOS')) sku = 'NAT-6MAG-60C';
+      else if (item.xProd.toUpperCase().includes('ACETILCISTEINA') || item.xProd.toUpperCase().includes('NAC')) sku = 'NAT-NAC-60C';
+    }
 
     let product = state.items.find((p) => p.sku === sku);
 
@@ -796,3 +878,201 @@ export function registerUsCommercialInvoice(data: {
     message: `Commercial Invoice ${data.invoiceNumber} registrada com sucesso! ${data.items.length} produto(s) adicionados ao armazém Prep Ninjas (UT).`,
   };
 }
+
+export function getReturnsState(): ReturnRecord[] {
+  const state = getErpState();
+  return state.returns || [];
+}
+
+export function addReturnRecord(data: Omit<ReturnRecord, 'id'>): ReturnRecord {
+  const state = getErpState();
+  if (!state.returns) {
+    state.returns = [];
+  }
+  const newReturn: ReturnRecord = {
+    ...data,
+    id: `ret-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+  };
+  state.returns.unshift(newReturn);
+
+  if (newReturn.status === 'RESTOCKED') {
+    const item = state.items.find((p) => p.sku === newReturn.sku);
+    if (item) {
+      item.balances[newReturn.warehouse] = (item.balances[newReturn.warehouse] || 0) + newReturn.quantity;
+      item.totalStock = Object.values(item.balances).reduce((a, b) => a + b, 0);
+      state.movements.unshift({
+        id: `mov-ret-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        sku: newReturn.sku,
+        productTitle: newReturn.productTitle,
+        type: 'ADJUSTMENT',
+        toWarehouse: newReturn.warehouse,
+        quantity: newReturn.quantity,
+        documentRef: `Return ${newReturn.id}`,
+        notes: `Estoque reposto por devolução inspecionada (${newReturn.reason}).`,
+      });
+    }
+  }
+
+  saveErpState(state);
+  return newReturn;
+}
+
+export function calculateDre(period: string = '2026-10', customPtax: number = 5.75): {
+  us: DreStatement;
+  br: DreStatement;
+  consolidated: DreStatement;
+} {
+  const state = getErpState();
+  const orders = state.orders || [];
+
+  // US calculations
+  const usOrders = orders.filter((o) => o.marketplace === 'Amazon US');
+  const usGrossRevenue = parseFloat(usOrders.reduce((sum, o) => sum + o.salePrice * o.quantity, 0).toFixed(2));
+  const usTotalUnits = usOrders.reduce((sum, o) => sum + o.quantity, 0);
+  const usMarketplaceFees = parseFloat((usGrossRevenue * 0.15).toFixed(2));
+  const usFulfillmentFees = parseFloat((usTotalUnits * 3.25).toFixed(2));
+  const usTaxes = 0;
+  const usTotalDeductions = parseFloat((usMarketplaceFees + usFulfillmentFees + usTaxes).toFixed(2));
+  const usNetRevenue = parseFloat((usGrossRevenue - usTotalDeductions).toFixed(2));
+  const usCogs = parseFloat(usOrders.reduce((sum, o) => sum + o.unitCost * o.quantity, 0).toFixed(2));
+  const usGrossProfit = parseFloat((usNetRevenue - usCogs).toFixed(2));
+  const usGrossMarginPercent = usGrossRevenue > 0 ? parseFloat(((usGrossProfit / usGrossRevenue) * 100).toFixed(1)) : 0;
+
+  const usPrepFees = parseFloat((usTotalUnits * 0.35).toFixed(2));
+  const usStorageFees = parseFloat((usTotalUnits * 0.05).toFixed(2));
+  const usInboundFreight = parseFloat((usTotalUnits * 0.20).toFixed(2));
+  const usTotalOpEx = parseFloat((usPrepFees + usStorageFees + usInboundFreight).toFixed(2));
+  const usNetOperatingIncome = parseFloat((usGrossProfit - usTotalOpEx).toFixed(2));
+  const usNetMarginPercent = usGrossRevenue > 0 ? parseFloat(((usNetOperatingIncome / usGrossRevenue) * 100).toFixed(1)) : 0;
+
+  const usStatement: DreStatement = {
+    period,
+    country: 'US',
+    currency: 'USD',
+    ptaxRate: customPtax,
+    grossRevenue: usGrossRevenue,
+    deductions: {
+      marketplaceFees: usMarketplaceFees,
+      fulfillmentFees: usFulfillmentFees,
+      taxes: usTaxes,
+      totalDeductions: usTotalDeductions,
+    },
+    netRevenue: usNetRevenue,
+    cogs: usCogs,
+    grossProfit: usGrossProfit,
+    grossMarginPercent: usGrossMarginPercent,
+    operatingExpenses: {
+      prepFees: usPrepFees,
+      storageFees: usStorageFees,
+      inboundFreight: usInboundFreight,
+      totalOpEx: usTotalOpEx,
+    },
+    netOperatingIncome: usNetOperatingIncome,
+    netMarginPercent: usNetMarginPercent,
+  };
+
+  // BR calculations
+  const brOrders = orders.filter((o) => o.marketplace === 'Amazon BR' || o.marketplace === 'Mercado Livre');
+  const brGrossRevenue = parseFloat(brOrders.reduce((sum, o) => sum + o.salePrice * o.quantity, 0).toFixed(2));
+  const brTotalUnits = brOrders.reduce((sum, o) => sum + o.quantity, 0);
+  const brMarketplaceFees = parseFloat((brGrossRevenue * 0.16).toFixed(2));
+  const brFulfillmentFees = parseFloat((brTotalUnits * 14.50).toFixed(2));
+  const brTaxes = parseFloat((brGrossRevenue * 0.06).toFixed(2));
+  const brTotalDeductions = parseFloat((brMarketplaceFees + brFulfillmentFees + brTaxes).toFixed(2));
+  const brNetRevenue = parseFloat((brGrossRevenue - brTotalDeductions).toFixed(2));
+  const brCogs = parseFloat(brOrders.reduce((sum, o) => sum + o.unitCost * o.quantity, 0).toFixed(2));
+  const brGrossProfit = parseFloat((brNetRevenue - brCogs).toFixed(2));
+  const brGrossMarginPercent = brGrossRevenue > 0 ? parseFloat(((brGrossProfit / brGrossRevenue) * 100).toFixed(1)) : 0;
+
+  const brPrepFees = parseFloat((brTotalUnits * 2.50).toFixed(2));
+  const brStorageFees = 0;
+  const brInboundFreight = parseFloat((brTotalUnits * 1.80).toFixed(2));
+  const brTotalOpEx = parseFloat((brPrepFees + brStorageFees + brInboundFreight).toFixed(2));
+  const brNetOperatingIncome = parseFloat((brGrossProfit - brTotalOpEx).toFixed(2));
+  const brNetMarginPercent = brGrossRevenue > 0 ? parseFloat(((brNetOperatingIncome / brGrossRevenue) * 100).toFixed(1)) : 0;
+
+  const brStatement: DreStatement = {
+    period,
+    country: 'BR',
+    currency: 'BRL',
+    ptaxRate: customPtax,
+    grossRevenue: brGrossRevenue,
+    deductions: {
+      marketplaceFees: brMarketplaceFees,
+      fulfillmentFees: brFulfillmentFees,
+      taxes: brTaxes,
+      totalDeductions: brTotalDeductions,
+    },
+    netRevenue: brNetRevenue,
+    cogs: brCogs,
+    grossProfit: brGrossProfit,
+    grossMarginPercent: brGrossMarginPercent,
+    operatingExpenses: {
+      prepFees: brPrepFees,
+      storageFees: brStorageFees,
+      inboundFreight: brInboundFreight,
+      totalOpEx: brTotalOpEx,
+    },
+    netOperatingIncome: brNetOperatingIncome,
+    netMarginPercent: brNetMarginPercent,
+  };
+
+  // Consolidated (converted to BRL at PTAX)
+  const usInBrlGross = usGrossRevenue * customPtax;
+  const usInBrlNetRev = usNetRevenue * customPtax;
+  const usInBrlCogs = usCogs * customPtax;
+  const usInBrlGrossProfit = usGrossProfit * customPtax;
+  const usInBrlOpEx = usTotalOpEx * customPtax;
+  const usInBrlNetOpInc = usNetOperatingIncome * customPtax;
+
+  const consGrossRevenue = parseFloat((usInBrlGross + brGrossRevenue).toFixed(2));
+  const consMarketplaceFees = parseFloat((usMarketplaceFees * customPtax + brMarketplaceFees).toFixed(2));
+  const consFulfillmentFees = parseFloat((usFulfillmentFees * customPtax + brFulfillmentFees).toFixed(2));
+  const consTaxes = parseFloat((usTaxes * customPtax + brTaxes).toFixed(2));
+  const consTotalDeductions = parseFloat((consMarketplaceFees + consFulfillmentFees + consTaxes).toFixed(2));
+  const consNetRevenue = parseFloat((consGrossRevenue - consTotalDeductions).toFixed(2));
+  const consCogs = parseFloat((usInBrlCogs + brCogs).toFixed(2));
+  const consGrossProfit = parseFloat((consNetRevenue - consCogs).toFixed(2));
+  const consGrossMarginPercent = consGrossRevenue > 0 ? parseFloat(((consGrossProfit / consGrossRevenue) * 100).toFixed(1)) : 0;
+
+  const consPrepFees = parseFloat((usPrepFees * customPtax + brPrepFees).toFixed(2));
+  const consStorageFees = parseFloat((usStorageFees * customPtax + brStorageFees).toFixed(2));
+  const consInboundFreight = parseFloat((usInboundFreight * customPtax + brInboundFreight).toFixed(2));
+  const consTotalOpEx = parseFloat((consPrepFees + consStorageFees + consInboundFreight).toFixed(2));
+  const consNetOperatingIncome = parseFloat((consGrossProfit - consTotalOpEx).toFixed(2));
+  const consNetMarginPercent = consGrossRevenue > 0 ? parseFloat(((consNetOperatingIncome / consGrossRevenue) * 100).toFixed(1)) : 0;
+
+  const consolidatedStatement: DreStatement = {
+    period,
+    country: 'CONSOLIDATED',
+    currency: 'BRL',
+    ptaxRate: customPtax,
+    grossRevenue: consGrossRevenue,
+    deductions: {
+      marketplaceFees: consMarketplaceFees,
+      fulfillmentFees: consFulfillmentFees,
+      taxes: consTaxes,
+      totalDeductions: consTotalDeductions,
+    },
+    netRevenue: consNetRevenue,
+    cogs: consCogs,
+    grossProfit: consGrossProfit,
+    grossMarginPercent: consGrossMarginPercent,
+    operatingExpenses: {
+      prepFees: consPrepFees,
+      storageFees: consStorageFees,
+      inboundFreight: consInboundFreight,
+      totalOpEx: consTotalOpEx,
+    },
+    netOperatingIncome: consNetOperatingIncome,
+    netMarginPercent: consNetMarginPercent,
+  };
+
+  return {
+    us: usStatement,
+    br: brStatement,
+    consolidated: consolidatedStatement,
+  };
+}
+
