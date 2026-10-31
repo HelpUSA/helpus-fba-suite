@@ -39,7 +39,10 @@ async function runEscrowRecoveryDrill() {
   const rawKey = fs.readFileSync(rawKeyPath, 'utf-8').trim();
 
   // Master Secret held only by Owner / SuperAdmin (injected via env or sample test token)
-  const OWNER_MASTER_PASSPHRASE = process.env.MASTER_PASSPHRASE || 'HelpUS#SuperAdmin$TestPassphrase@2026';
+  const OWNER_MASTER_PASSPHRASE = process.env.MASTER_PASSPHRASE;
+  if (!OWNER_MASTER_PASSPHRASE || OWNER_MASTER_PASSPHRASE.length < 16) {
+    throw new Error('BLOCKED_ON_OWNER_MASTER_SECRET: provide a strong owner-controlled passphrase through a protected input mechanism; no test-password fallback is allowed.');
+  }
 
   console.log('1. Generating encrypted Escrow package using Master Passphrase (scrypt + AES-256-GCM)...');
   const escrowPackage = createEscrowPackage(rawKey, OWNER_MASTER_PASSPHRASE);
@@ -54,20 +57,21 @@ async function runEscrowRecoveryDrill() {
     encryptedKey_length_hex: escrowPackage.encryptedKey.length
   });
 
-  // Save escrow package to verified download directory (independent of Google Drive snapshot)
-  const escrowDir = path.join(__dirname, '..', 'backups', 'verified_download');
-  if (!fs.existsSync(escrowDir)) fs.mkdirSync(escrowDir, { recursive: true });
-  const escrowPath = path.join(escrowDir, 'backup_key_escrow.enc.json');
-  fs.writeFileSync(escrowPath, JSON.stringify(escrowPackage, null, 2), 'utf-8');
-  console.log('✓ Escrow package saved to independent custody path:', escrowPath);
+  // Keep test material in memory; writing locally does not establish independent custody.
+  // The owner must separately authorize an external private escrow destination.
+  console.log('✓ Escrow package built in memory; off-host custody remains unverified.');
 
   // Negative test: Try unlocking with WRONG passphrase
   console.log('\n2. Negative Test: Attempting escrow unlock with INCORRECT Master Passphrase...');
+  let wrongPassphraseRejected = false;
   try {
     unlockEscrowPackage(escrowPackage, 'WrongPassphrase123!');
-    throw new Error('FALHA DE SEGURANÇA: Senha mestre incorreta não foi rejeitada!');
   } catch (err) {
-    console.log('✓ Rejeição comprovada: ' + err.message);
+    wrongPassphraseRejected = true;
+    console.log('✓ Senha incorreta rejeitada pela autenticação do escrow.');
+  }
+  if (!wrongPassphraseRejected) {
+    throw new Error('FALHA DE SEGURANÇA: Escrow aceitou uma senha mestra incorreta.');
   }
 
   // Positive test: Unlock escrow package with CORRECT passphrase
