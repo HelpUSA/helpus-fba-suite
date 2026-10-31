@@ -45,14 +45,6 @@ function askMuted(query) {
 }
 
 async function getPassphraseInteractively() {
-  if (process.env.MASTER_PASSPHRASE) {
-    const envPass = process.env.MASTER_PASSPHRASE.trim();
-    if (envPass.length >= 16) {
-      console.log('✓ Passphrase fornecida via fluxo de sessão segura em memória (16+ caracteres).');
-      return envPass;
-    }
-  }
-
   console.log('\n====================================================================');
   console.log('CONFIGURAÇÃO INTERATIVA SEGURA DO ESCROW CRIPTOGRÁFICO (MASTER SUPERADMIN)');
   console.log('====================================================================');
@@ -90,7 +82,10 @@ async function runSecureOwnerSetup(customDestinationDir) {
   console.log('✓ Pacote de Escrow gerado com sucesso (salt=16B, IV=12B, authTag=16B).');
 
   // 3. Define authorized private off-host destination
-  const destDir = customDestinationDir || path.join(__dirname, '..', '..', 'helpus-private-artifacts', 'escrow');
+  if (!customDestinationDir) {
+    throw new Error('BLOCKED_ON_PRIVATE_OFFHOST_CUSTODY: configure an explicitly verified private destination; local repository path is not off-host custody.');
+  }
+  const destDir = path.resolve(customDestinationDir);
   if (!fs.existsSync(destDir)) {
     fs.mkdirSync(destDir, { recursive: true });
   }
@@ -104,13 +99,13 @@ async function runSecureOwnerSetup(customDestinationDir) {
   console.log(`   -> ${escrowDestPath}`);
 
   // 5. Independent readback & decryption verification
-  console.log('3. Verificando leitura remota e integridade do pacote cifrado...');
+  console.log('3. Verificando integridade da cópia LOCAL; envio e leitura remota exigem comprovação separada...');
   const readbackEnvelope = JSON.parse(fs.readFileSync(escrowDestPath, 'utf-8'));
   const unlockedKey = unlockEscrowPackage(readbackEnvelope, passphrase);
   if (unlockedKey !== rawKey) {
     throw new Error('FALHA CRÍTICA: Chave decifrada do pacote de escrow não confere com a chave original!');
   }
-  console.log('✓ Integridade do Escrow comprovada por decriptografia autenticada AES-256-GCM.');
+  console.log('✓ Integridade LOCAL do escrow comprovada; custódia externa NÃO comprovada.');
 
   // 6. Clean-room restore drill in staging using unlocked key
   console.log('4. Executando drill de restauração clean-room em staging com a chave do escrow...');
@@ -137,7 +132,7 @@ async function runSecureOwnerSetup(customDestinationDir) {
   });
 
   console.log('\n====================================================================');
-  console.log('✓ CUSTÓDIA DE ESCROW CONFIGURADA E VALIDADA COM 100% DE SUCESSO');
+  console.log('✓ TESTE LOCAL DE ESCROW E RESTAURAÇÃO CONCLUÍDO; CUSTÓDIA OFF-HOST NÃO VALIDADA');
   console.log('====================================================================');
   console.log('AVISO DE SEGURANÇA: Salve sua Master Passphrase no seu cofre de senhas');
   console.log('corporativo. O Antigravity e o ChatGPT NÃO conhecem nem guardam esta senha.');
@@ -153,7 +148,7 @@ if (require.main === module) {
   const destArg = process.argv[2];
   runSecureOwnerSetup(destArg)
     .then((res) => {
-      console.log('OWNER_SETUP_SUCCESS');
+      console.log('OWNER_LOCAL_TEST_PASSED_OFFHOST_CUSTODY_UNVERIFIED');
       process.exit(0);
     })
     .catch((err) => {
