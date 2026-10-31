@@ -1,3 +1,5 @@
+// Credentials must be provided at runtime, never committed to source control.
+if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required.');
 const { execSync } = require('child_process');
 const { Client } = require('pg');
 const path = require('path');
@@ -14,7 +16,7 @@ async function testBackupRestore() {
 
   const pgDumpPath = 'C:\\Program Files\\PostgreSQL\\18\\bin\\pg_dump.exe';
   const psqlPath = 'C:\\Program Files\\PostgreSQL\\18\\bin\\psql.exe';
-  const env = { ...process.env, PGPASSWORD: '@dmLocal1993' };
+  const env = { ...process.env, PGPASSWORD: process.env.PGPASSWORD };
 
   // 1. Executar pg_dump
   console.log('[1/3] Gerando dump estrutural e de dados via pg_dump...');
@@ -24,7 +26,7 @@ async function testBackupRestore() {
   // 2. Preparar banco de dados de restauração
   console.log('[2/3] Criando banco de dados de teste para validação de restore...');
   const rootClient = new Client({
-    connectionString: 'postgres://postgres:@dmLocal1993@localhost:5432/postgres'
+    connectionString: process.env.DATABASE_URL
   });
   await rootClient.connect();
   await rootClient.query('DROP DATABASE IF EXISTS helpus_fba_suite_restore_test;');
@@ -38,7 +40,7 @@ async function testBackupRestore() {
 
   // Validar integridade dos dados restaurados
   const restoreClient = new Client({
-    connectionString: 'postgres://postgres:@dmLocal1993@localhost:5432/helpus_fba_suite_restore_test'
+    connectionString: process.env.DATABASE_URL
   });
   await restoreClient.connect();
   const resTables = await restoreClient.query(`
