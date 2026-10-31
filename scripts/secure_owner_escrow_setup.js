@@ -1,15 +1,17 @@
-// Interactive & Secure Owner Key Escrow Setup (Order 037 Gate G4.2)
+// Interactive & Secure Owner Key Escrow Setup (Order 037 & 038 Gate G4.2)
 // Provides a zero-leakage, interactive local workflow for the Master SuperAdmin:
 // 1. Silent, non-echoed passphrase entry (never logged, never in shell history).
 // 2. Encrypts the 256-bit backup key into an authenticated AES-256-GCM escrow package.
-// 3. Atomically writes ONLY the encrypted envelope to an authorized private off-host destination.
-// 4. Verifies remote readback and executes a clean-room staging restore drill without disk key fallback.
-// 5. Preserves the original raw key locally until positive proof of recovery is confirmed.
+// 3. Verifies that HelpUSA/helpus-private-artifacts is strictly PRIVATE via GitHub API.
+// 4. Atomically writes ONLY the encrypted envelope to the private repo and pushes to GitHub remote.
+// 5. Verifies off-host presence and fetches the object independently via GitHub REST API.
+// 6. Restores exclusively in isolated staging with decrypted key without disk key fallback.
 
 const readline = require('readline');
 const { Writable } = require('stream');
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 const crypto = require('crypto');
 const { createEscrowPackage, unlockEscrowPackage } = require('./key_escrow_manager');
 const { testIndependentRemoteRestore } = require('./test_gdrive_restore');
@@ -44,6 +46,20 @@ function askMuted(query) {
   });
 }
 
+function verifyPrivateRepoSecurity(repoSlug = 'HelpUSA/helpus-private-artifacts') {
+  try {
+    const raw = execSync(`gh repo view ${repoSlug} --json isPrivate,name,owner`, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+    const info = JSON.parse(raw);
+    if (!info.isPrivate) {
+      throw new Error(`🛑 ABORTE DE SEGURANÇA: O repositório ${repoSlug} NÃO é privado!`);
+    }
+    console.log(`✓ Verificação de segurança: Repositório '${repoSlug}' confirmado estritamente PRIVADO (isPrivate: true).`);
+    return true;
+  } catch (err) {
+    throw new Error(`Falha ao auditar privacidade do repositório remoto: ${err.message}`);
+  }
+}
+
 async function getPassphraseInteractively() {
   console.log('\n====================================================================');
   console.log('CONFIGURAÇÃO INTERATIVA SEGURA DO ESCROW CRIPTOGRÁFICO (MASTER SUPERADMIN)');
@@ -66,7 +82,70 @@ async function getPassphraseInteractively() {
   }
 }
 
-async function runSecureOwnerSetup(customDestinationDir) {
+async function runSyntheticOffhostVerification() {
+  console.log('====================================================================');
+  console.log('INICIANDO TESTE SINTÉTICO OFF-HOST (ORDER 038 ITEM 6)');
+  console.log('====================================================================');
+  
+  verifyPrivateRepoSecurity('HelpUSA/helpus-private-artifacts');
+
+  const privateRepoDir = path.resolve(__dirname, '..', '..', 'helpus-private-artifacts');
+  if (!fs.existsSync(privateRepoDir)) {
+    throw new Error('Diretório local do repositório privado não encontrado: ' + privateRepoDir);
+  }
+
+  // Generate synthetic sample key and synthetic passphrase
+  const syntheticKey = crypto.randomBytes(32).toString('hex');
+  const syntheticPassphrase = 'Synthetic#TestPassphrase@Entropy' + crypto.randomBytes(8).toString('hex');
+
+  console.log('1. Gerando pacote de escrow sintético com scrypt N=16384 + AES-256-GCM...');
+  const syntheticEscrow = createEscrowPackage(syntheticKey, syntheticPassphrase);
+
+  const escrowDir = path.join(privateRepoDir, 'escrow');
+  if (!fs.existsSync(escrowDir)) fs.mkdirSync(escrowDir, { recursive: true });
+  const syntheticFilePath = path.join(escrowDir, 'synthetic_test_escrow.enc.json');
+
+  fs.writeFileSync(syntheticFilePath, JSON.stringify(syntheticEscrow, null, 2), { encoding: 'utf-8', mode: 0o600 });
+  console.log('2. Arquivo sintético gravado localmente no workspace privado.');
+
+  console.log('3. Realizando staging estrito e push para repositório PRIVADO remoto...');
+  execSync(`git -C "${privateRepoDir}" add escrow/synthetic_test_escrow.enc.json`, { stdio: 'pipe' });
+  execSync(`git -C "${privateRepoDir}" commit -m "test: synthetic escrow custody verification (Order 038)"`, { stdio: 'pipe' });
+  execSync(`git -C "${privateRepoDir}" push origin main`, { stdio: 'pipe' });
+  console.log('✓ Push para GitHub privado executado com sucesso.');
+
+  console.log('4. Consultando objeto remoto diretamente via API GitHub (gh api contents)...');
+  const apiOut = execSync(`gh api repos/HelpUSA/helpus-private-artifacts/contents/escrow/synthetic_test_escrow.enc.json`, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+  const remoteFileObj = JSON.parse(apiOut);
+  const remoteJsonStr = Buffer.from(remoteFileObj.content, 'base64').toString('utf-8');
+  const remoteEnvelope = JSON.parse(remoteJsonStr);
+
+  console.log('5. Decifrando objeto retornado da nuvem GitHub com a passphrase sintética...');
+  const unlockedSynthetic = unlockEscrowPackage(remoteEnvelope, syntheticPassphrase);
+  if (unlockedSynthetic !== syntheticKey) {
+    throw new Error('FALHA CRÍTICA: Chave decifrada via API remota divergiu do original!');
+  }
+  console.log('✓ Leitura remota via API e decriptografia AES-256-GCM comprovadas com 100% de integridade.');
+
+  console.log('6. Limpando artefato de teste sintético do repositório remoto...');
+  execSync(`git -C "${privateRepoDir}" rm escrow/synthetic_test_escrow.enc.json`, { stdio: 'pipe' });
+  execSync(`git -C "${privateRepoDir}" commit -m "chore: purge synthetic test escrow artifact"`, { stdio: 'pipe' });
+  execSync(`git -C "${privateRepoDir}" push origin main`, { stdio: 'pipe' });
+  console.log('✓ Repositório privado limpo com sucesso.');
+
+  console.log('\n====================================================================');
+  console.log('✓ FLUXO TÉCNICO OFF-HOST VALIDADO COM SUCESSO (PIPELINE 100% OPERACIONAL)');
+  console.log('====================================================================');
+  return {
+    verifiedRepo: 'HelpUSA/helpus-private-artifacts',
+    remoteSha: remoteFileObj.sha,
+    syntheticDrillPassed: true
+  };
+}
+
+async function runSecureOwnerSetup() {
+  verifyPrivateRepoSecurity('HelpUSA/helpus-private-artifacts');
+
   const rawKeyPath = path.join(__dirname, '..', 'backups', '.backup_secret_key');
   if (!fs.existsSync(rawKeyPath)) {
     throw new Error('Chave original de backup não encontrada em backups/.backup_secret_key.');
@@ -82,10 +161,11 @@ async function runSecureOwnerSetup(customDestinationDir) {
   console.log('✓ Pacote de Escrow gerado com sucesso (salt=16B, IV=12B, authTag=16B).');
 
   // 3. Define authorized private off-host destination
-  if (!customDestinationDir) {
-    throw new Error('BLOCKED_ON_PRIVATE_OFFHOST_CUSTODY: configure an explicitly verified private destination; local repository path is not off-host custody.');
+  const privateRepoDir = path.resolve(__dirname, '..', '..', 'helpus-private-artifacts');
+  if (!fs.existsSync(privateRepoDir)) {
+    throw new Error('Diretório local do repositório privado não encontrado: ' + privateRepoDir);
   }
-  const destDir = path.resolve(customDestinationDir);
+  const destDir = path.join(privateRepoDir, 'escrow');
   if (!fs.existsSync(destDir)) {
     fs.mkdirSync(destDir, { recursive: true });
   }
@@ -95,20 +175,30 @@ async function runSecureOwnerSetup(customDestinationDir) {
   const tempPath = `${escrowDestPath}.tmp.${Date.now()}`;
   fs.writeFileSync(tempPath, JSON.stringify(escrowPackage, null, 2), { encoding: 'utf-8', mode: 0o600 });
   fs.renameSync(tempPath, escrowDestPath);
-  console.log('2. Pacote de Escrow gravado atomicamente no destino privado autorizado:');
-  console.log(`   -> ${escrowDestPath}`);
+  console.log('2. Pacote de Escrow gravado atomicamente no workspace privado autorizado.');
 
-  // 5. Independent readback & decryption verification
-  console.log('3. Verificando integridade da cópia LOCAL; envio e leitura remota exigem comprovação separada...');
-  const readbackEnvelope = JSON.parse(fs.readFileSync(escrowDestPath, 'utf-8'));
-  const unlockedKey = unlockEscrowPackage(readbackEnvelope, passphrase);
+  // 5. Specific Staging and Push to Private Remote
+  console.log('3. Enviando pacote de escrow para repositório PRIVADO remoto (git push)...');
+  execSync(`git -C "${privateRepoDir}" add escrow/backup_key_escrow.enc.json`, { stdio: 'pipe' });
+  execSync(`git -C "${privateRepoDir}" commit -m "chore(escrow): update encrypted backup key escrow package"`, { stdio: 'pipe' });
+  execSync(`git -C "${privateRepoDir}" push origin main`, { stdio: 'pipe' });
+  console.log('✓ Push para GitHub privado executado com sucesso.');
+
+  // 6. Independent readback via GitHub API
+  console.log('4. Verificando presença e integridade do objeto via API GitHub (gh api contents)...');
+  const apiOut = execSync(`gh api repos/HelpUSA/helpus-private-artifacts/contents/escrow/backup_key_escrow.enc.json`, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+  const remoteFileObj = JSON.parse(apiOut);
+  const remoteJsonStr = Buffer.from(remoteFileObj.content, 'base64').toString('utf-8');
+  const remoteEnvelope = JSON.parse(remoteJsonStr);
+
+  const unlockedKey = unlockEscrowPackage(remoteEnvelope, passphrase);
   if (unlockedKey !== rawKey) {
-    throw new Error('FALHA CRÍTICA: Chave decifrada do pacote de escrow não confere com a chave original!');
+    throw new Error('FALHA CRÍTICA: Chave recuperada da API remota não confere com a chave original!');
   }
-  console.log('✓ Integridade LOCAL do escrow comprovada; custódia externa NÃO comprovada.');
+  console.log('✓ Integridade e custódia remota off-host comprovadas via API GitHub.');
 
-  // 6. Clean-room restore drill in staging using unlocked key
-  console.log('4. Executando drill de restauração clean-room em staging com a chave do escrow...');
+  // 7. Clean-room restore drill in staging using unlocked key
+  console.log('5. Executando drill de restauração clean-room em staging com a chave obtida do escrow...');
   const remoteSnapshot = 'G:\\Meu Drive\\Backup\\HelpUS_ERP_Database_Custody\\latest_backup.enc.json';
 
   // Load staging URL if not already in env
@@ -132,31 +222,44 @@ async function runSecureOwnerSetup(customDestinationDir) {
   });
 
   console.log('\n====================================================================');
-  console.log('✓ TESTE LOCAL DE ESCROW E RESTAURAÇÃO CONCLUÍDO; CUSTÓDIA OFF-HOST NÃO VALIDADA');
+  console.log('✓ CUSTÓDIA DE ESCROW OFF-HOST E RECUPERAÇÃO EM STAGING CONCLUÍDAS COM 100% DE SUCESSO');
   console.log('====================================================================');
   console.log('AVISO DE SEGURANÇA: Salve sua Master Passphrase no seu cofre de senhas');
   console.log('corporativo. O Antigravity e o ChatGPT NÃO conhecem nem guardam esta senha.');
 
   return {
-    escrowDestPath,
+    remoteSha: remoteFileObj.sha,
     createdAt: escrowPackage.createdAt,
     restoreRes
   };
 }
 
 if (require.main === module) {
-  const destArg = process.argv[2];
-  runSecureOwnerSetup(destArg)
-    .then((res) => {
-      console.log('OWNER_LOCAL_TEST_PASSED_OFFHOST_CUSTODY_UNVERIFIED');
-      process.exit(0);
-    })
-    .catch((err) => {
-      console.error('OWNER_SETUP_FAILED:', err.message);
-      process.exit(1);
-    });
+  const isSynthetic = process.argv.includes('--test-synthetic');
+  if (isSynthetic) {
+    runSyntheticOffhostVerification()
+      .then((res) => {
+        console.log('SYNTHETIC_OFFHOST_TEST_PASSED');
+        process.exit(0);
+      })
+      .catch((err) => {
+        console.error('SYNTHETIC_OFFHOST_TEST_FAILED:', err.message);
+        process.exit(1);
+      });
+  } else {
+    runSecureOwnerSetup()
+      .then((res) => {
+        console.log('OWNER_OFFHOST_SETUP_SUCCESS');
+        process.exit(0);
+      })
+      .catch((err) => {
+        console.error('OWNER_SETUP_FAILED:', err.message);
+        process.exit(1);
+      });
+  }
 }
 
 module.exports = {
-  runSecureOwnerSetup
+  runSecureOwnerSetup,
+  runSyntheticOffhostVerification
 };
