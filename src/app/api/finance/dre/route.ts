@@ -17,6 +17,10 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
       period,
       ptaxRate: ptax,
+      isEstimated: true,
+      accountingClassification: 'PROVISIONAL_MANAGEMENT_ESTIMATE',
+      auditNotice:
+        'Aviso de Governança (Ordem 013): Este demonstrativo reflete projeções gerenciais estimadas com base em parâmetros operacionais padrão (comissões médias de marketplace, tarifas 3PL estimadas e Simples Nacional). Não substitui a DRE contábil/fiscal auditada definitiva.',
       statements: dre,
     });
   } catch (error: any) {

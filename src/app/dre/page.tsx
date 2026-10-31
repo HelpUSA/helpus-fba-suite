@@ -102,6 +102,9 @@ export default function DrePage() {
             <div>
               <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
                 DRE Financeiro & P&L Consolidado
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 font-mono">
+                  ESTIMATIVA GERENCIAL
+                </span>
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-mono">
                   FASE P1
                 </span>
@@ -170,6 +173,17 @@ export default function DrePage() {
             <Download className="w-3.5 h-3.5" />
             <span>Exportar CSV</span>
           </button>
+        </div>
+      </div>
+
+      {/* Governance Audit Notice (Finding 4 - Order 013) */}
+      <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex items-start gap-3 text-xs text-amber-200">
+        <HelpCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+        <div>
+          <span className="font-bold uppercase tracking-wider block mb-0.5 text-amber-300">
+            Aviso de Governança: Demonstrativo Gerencial Estimado
+          </span>
+          Os cálculos abaixo constituem projeções operacionais com base em taxas médias de marketplace (15% US / 16% BR), parâmetros logísticos estimados e alíquota Simples Nacional de 6%. Os valores contábeis definitivos e taxas PTAX históricas consolidadas serão apurados no fechamento fiscal.
         </div>
       </div>
 

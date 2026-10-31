@@ -13,7 +13,13 @@ import {
   DreStatement,
   ErpDatabaseState,
 } from './erpTypes';
-import { isPostgresConfigured } from './db/postgresClient';
+import {
+  isPostgresConfigured,
+  persistSaleOrderPostgres,
+  persistStockTransferPostgres,
+  persistNfeInboundPostgres,
+  persistReturnPostgres,
+} from './db/postgresClient';
 
 export * from './erpTypes';
 
@@ -383,21 +389,18 @@ export function getErpState(): ErpDatabaseState {
 
 export function saveErpState(state: ErpDatabaseState): void {
   const isVercelServerless = Boolean(process.env.VERCEL) || (typeof process !== 'undefined' && process.cwd && process.cwd().startsWith('/var/task'));
+  const hasPostgres = isPostgresConfigured();
 
-  // Fail-Safe Governance (Order 012):
+  // Fail-Closed Governance (Finding 2 - Order 013):
   // /tmp is strictly ephemeral scratch space and cannot be used as an authoritative persistent fallback.
-  // In production serverless, writes must target PostgreSQL or be explicitly marked non-authoritative.
-  if (isVercelServerless) {
-    if (isPostgresConfigured()) {
-      state.storageEngine = 'POSTGRES';
-    } else {
-      state.storageEngine = 'EPHEMERAL_CACHE';
-      console.warn('[ErpStore Fail-Safe Notice] DATABASE_URL não configurada no Vercel. Operação mantida em cache de sessão efêmero.');
-    }
-  } else {
-    state.storageEngine = isPostgresConfigured() ? 'POSTGRES' : 'PERSISTENT_JSON';
+  // In production serverless, writes must target PostgreSQL or fail safely.
+  if (isVercelServerless && !hasPostgres && process.env.NODE_ENV === 'production') {
+    throw new Error(
+      '[Persistência Fail-Closed] Gravação bloqueada: PostgreSQL não configurado no ambiente de produção Vercel. Operações mutativas do ERP exigem banco relacional definitivo para evitar perda silenciosa de dados.'
+    );
   }
 
+  state.storageEngine = hasPostgres ? 'POSTGRES' : (isVercelServerless ? 'EPHEMERAL_CACHE' : 'PERSISTENT_JSON');
   state.lastUpdated = new Date().toISOString();
   inMemoryDbState = JSON.parse(JSON.stringify(state));
 
@@ -411,14 +414,21 @@ export function saveErpState(state: ErpDatabaseState): void {
     fs.writeFileSync(tmpPath, JSON.stringify(state, null, 2), 'utf-8');
     fs.renameSync(tmpPath, filePath);
   } catch (error: any) {
-    console.warn('[ErpStore] Disk persistence notice:', error?.message || error);
-    if (!isVercelServerless) {
+    console.error('[ErpStore] Erro de persistência em disco:', error?.message || error);
+    if (process.env.NODE_ENV === 'production') {
       throw error;
     }
   }
 }
 
-export function registerNfeInbound(nfe: NfeData): { success: boolean; invoiceId: string; message: string } {
+export async function registerNfeInbound(nfe: NfeData): Promise<{ success: boolean; invoiceId: string; message: string }> {
+  const isVercelServerless = Boolean(process.env.VERCEL) || (typeof process !== 'undefined' && process.cwd && process.cwd().startsWith('/var/task'));
+  const hasPostgres = isPostgresConfigured();
+
+  if (isVercelServerless && !hasPostgres && process.env.NODE_ENV === 'production') {
+    throw new Error('[Persistência Fail-Closed] Importação NF-e bloqueada: PostgreSQL não configurado no ambiente de produção.');
+  }
+
   const state = getErpState();
 
   const existing = state.invoices.find((inv) => inv.chave === nfe.chaveAcesso);
@@ -430,7 +440,10 @@ export function registerNfeInbound(nfe: NfeData): { success: boolean; invoiceId:
     };
   }
 
-  const invoiceId = `inv-nfe-${nfe.numeroNF}-${Date.now()}`;
+  let invoiceId = `inv-nfe-${nfe.numeroNF}-${Date.now()}`;
+  if (hasPostgres) {
+    invoiceId = await persistNfeInboundPostgres(nfe);
+  }
   const now = new Date().toISOString();
 
   const detalhesItens = nfe.itens.map((item) => {
@@ -528,13 +541,20 @@ export function registerNfeInbound(nfe: NfeData): { success: boolean; invoiceId:
   };
 }
 
-export function transferInventory(
+export async function transferInventory(
   sku: string,
   fromWarehouse: WarehouseCode,
   toWarehouse: WarehouseCode,
   quantity: number,
   notes?: string
-): { success: boolean; message: string } {
+): Promise<{ success: boolean; message: string }> {
+  const isVercelServerless = Boolean(process.env.VERCEL) || (typeof process !== 'undefined' && process.cwd && process.cwd().startsWith('/var/task'));
+  const hasPostgres = isPostgresConfigured();
+
+  if (isVercelServerless && !hasPostgres && process.env.NODE_ENV === 'production') {
+    throw new Error('[Persistência Fail-Closed] Transferência de estoque bloqueada: PostgreSQL não configurado no ambiente de produção.');
+  }
+
   const state = getErpState();
   const product = state.items.find((p) => p.sku === sku);
 
@@ -548,6 +568,10 @@ export function transferInventory(
       success: false,
       message: `Saldo insuficiente em ${WAREHOUSES[fromWarehouse].name}. Disponível: ${currentFromBalance}, solicitado: ${quantity}.`,
     };
+  }
+
+  if (hasPostgres) {
+    await persistStockTransferPostgres({ sku, fromWh: fromWarehouse, toWh: toWarehouse, quantity, notes });
   }
 
   product.balances[fromWarehouse] -= quantity;
@@ -692,14 +716,21 @@ export function batchReceiveFba(): { success: boolean; totalUnits: number; messa
   };
 }
 
-export function recordSaleOrder(params: {
+export async function recordSaleOrder(params: {
   sku: string;
   quantity: number;
   marketplace: 'Amazon US' | 'Amazon BR' | 'Mercado Livre';
   customerCity?: string;
   orderNumber?: string;
   salePrice?: number;
-}): { success: boolean; message: string; order?: SaleOrder } {
+}): Promise<{ success: boolean; message: string; order?: SaleOrder }> {
+  const isVercelServerless = Boolean(process.env.VERCEL) || (typeof process !== 'undefined' && process.cwd && process.cwd().startsWith('/var/task'));
+  const hasPostgres = isPostgresConfigured();
+
+  if (isVercelServerless && !hasPostgres && process.env.NODE_ENV === 'production') {
+    throw new Error('[Persistência Fail-Closed] Faturamento bloqueado: PostgreSQL não configurado no ambiente de produção.');
+  }
+
   const state = getErpState();
   if (!state.orders) state.orders = [];
 
@@ -718,10 +749,6 @@ export function recordSaleOrder(params: {
       message: `Estoque insuficiente para venda no armazém ${WAREHOUSES[sourceWh].name}. Disponível: ${availableStock}, solicitado: ${params.quantity}.`,
     };
   }
-
-  // Deduct stock
-  product.balances[sourceWh] -= params.quantity;
-  product.totalStock = Object.values(product.balances).reduce((a, b) => a + b, 0);
 
   const price = params.salePrice || product.salePrice;
   const unitCost = product.unitCost;
@@ -747,6 +774,14 @@ export function recordSaleOrder(params: {
     warehouseSource: sourceWh,
     status: 'CONFIRMED',
   };
+
+  if (hasPostgres) {
+    await persistSaleOrderPostgres(newOrder);
+  }
+
+  // Deduct stock in local state
+  product.balances[sourceWh] -= params.quantity;
+  product.totalStock = Object.values(product.balances).reduce((a, b) => a + b, 0);
 
   state.orders.unshift(newOrder);
 
@@ -884,15 +919,27 @@ export function getReturnsState(): ReturnRecord[] {
   return state.returns || [];
 }
 
-export function addReturnRecord(data: Omit<ReturnRecord, 'id'>): ReturnRecord {
-  const state = getErpState();
-  if (!state.returns) {
-    state.returns = [];
+export async function addReturnRecord(data: Omit<ReturnRecord, 'id'>): Promise<ReturnRecord> {
+  const isVercelServerless = Boolean(process.env.VERCEL) || (typeof process !== 'undefined' && process.cwd && process.cwd().startsWith('/var/task'));
+  const hasPostgres = isPostgresConfigured();
+
+  if (isVercelServerless && !hasPostgres && process.env.NODE_ENV === 'production') {
+    throw new Error('[Persistência Fail-Closed] Registro de devolução bloqueado: PostgreSQL não configurado no ambiente de produção.');
   }
+
   const newReturn: ReturnRecord = {
     ...data,
     id: `ret-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
   };
+
+  if (hasPostgres) {
+    await persistReturnPostgres(newReturn);
+  }
+
+  const state = getErpState();
+  if (!state.returns) {
+    state.returns = [];
+  }
   state.returns.unshift(newReturn);
 
   if (newReturn.status === 'RESTOCKED') {

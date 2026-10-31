@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const newRecord = addReturnRecord({
+    const newRecord = await addReturnRecord({
       returnDate: body.returnDate || new Date().toISOString(),
       orderNumber: body.orderNumber,
       sku: body.sku,

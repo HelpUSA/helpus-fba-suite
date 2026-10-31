@@ -1,11 +1,16 @@
 import { NextRequest } from 'next/server';
 
 /**
- * HelpUS Security & Authorization Guard (P0)
- * Protects ERP and WMS mutation endpoints from unauthorized invocation.
+ * HelpUS Security & Authorization Guard (P0 Remediation - Order 013)
+ * Strict Fail-Closed Zero-Trust Enforcement.
+ *
+ * Rules:
+ * 1. No hardcoded default secrets allowed.
+ * 2. Host header matching (e.g. 'host.includes(fba.helpusbr.com)') NEVER grants mutation permissions.
+ * 3. All mutation operations require an authenticated token (Bearer, x-helpus-auth-token, or x-api-key)
+ *    matching valid environment-defined secrets.
+ * 4. If environment secrets are not set, all mutations fail-closed.
  */
-
-const MASTER_API_SECRET = process.env.HELPUS_API_SECRET || process.env.MASTER_SECRET || 'helpus-superadmin-master-2026';
 
 export interface AuthValidationResult {
   authorized: boolean;
@@ -13,50 +18,55 @@ export interface AuthValidationResult {
   actorRole: 'MASTER_SUPERADMIN' | 'OPERATOR' | 'ANONYMOUS';
 }
 
+function getMasterSecret(): string | null {
+  return process.env.HELPUS_API_SECRET || process.env.MASTER_SECRET || null;
+}
+
+function getOperatorSecret(): string | null {
+  return process.env.HELPUS_OPERATOR_TOKEN || process.env.OPERATOR_SECRET || null;
+}
+
 export function validateApiRequest(req: NextRequest, isMutation = false): AuthValidationResult {
-  // Read token from Header or Authorization Bearer
+  // Read token from Authorization header or custom API headers
   const authHeader = req.headers.get('authorization') || '';
   const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
   const customToken = req.headers.get('x-helpus-auth-token') || req.headers.get('x-api-key');
   const token = bearerToken || customToken;
 
-  // Master Secret matches
-  if (token && token === MASTER_API_SECRET) {
+  const masterSecret = getMasterSecret();
+  const operatorSecret = getOperatorSecret();
+
+  // 1. Verify Master SuperAdmin Token
+  if (masterSecret && token && token === masterSecret) {
     return { authorized: true, actorRole: 'MASTER_SUPERADMIN' };
   }
 
-  // Same-origin verification for web browser requests
-  const host = req.headers.get('host') || '';
-  const origin = req.headers.get('origin') || '';
-  const referer = req.headers.get('referer') || '';
+  // 2. Verify Operator Token
+  if (operatorSecret && token && token === operatorSecret) {
+    return { authorized: true, actorRole: 'OPERATOR' };
+  }
 
-  const isSameOrigin =
-    (origin && origin.includes(host)) ||
-    (referer && referer.includes(host)) ||
-    host.includes('localhost') ||
-    host.includes('127.0.0.1') ||
-    host.includes('fba.helpusbr.com') ||
-    host.includes('vercel.app');
-
-  // Read-only operations are permitted for dashboard views
+  // 3. For read-only operations (isMutation = false), allow anonymous read access for public dashboard queries
   if (!isMutation) {
     return {
       authorized: true,
-      actorRole: isSameOrigin ? 'OPERATOR' : 'ANONYMOUS',
+      actorRole: 'ANONYMOUS',
     };
   }
 
-  // Mutation operations require same-origin or explicit Master token
-  if (isSameOrigin) {
+  // 4. For mutation operations (isMutation = true): STRICT FAIL-CLOSED
+  // No host header spoofing, no automatic same-origin mutation bypass.
+  if (!masterSecret && !operatorSecret) {
     return {
-      authorized: true,
-      actorRole: 'OPERATOR',
+      authorized: false,
+      reason: 'Segurança Fail-Closed: Nenhuma chave mestra (HELPUS_API_SECRET) configurada no ambiente. Mutações bloqueadas por governança.',
+      actorRole: 'ANONYMOUS',
     };
   }
 
   return {
     authorized: false,
-    reason: 'Acesso não autorizado: token ausente ou origem externa inválida.',
+    reason: 'Acesso negado: Mutação requer autenticação válida (Bearer token ou cabeçalho x-helpus-auth-token).',
     actorRole: 'ANONYMOUS',
   };
 }

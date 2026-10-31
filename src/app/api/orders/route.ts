@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = recordSaleOrder({
+    const result = await recordSaleOrder({
       sku,
       quantity,
       marketplace,

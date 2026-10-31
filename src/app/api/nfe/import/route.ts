@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Register inbound into ERP store
-    const result = registerNfeInbound(parsedData);
+    const result = await registerNfeInbound(parsedData);
 
     return NextResponse.json({
       ok: true,

@@ -12,116 +12,116 @@ export async function GET(request: NextRequest) {
   const clientSecret = process.env.AMAZON_SP_CLIENT_SECRET;
   const refreshToken = process.env.AMAZON_SP_REFRESH_TOKEN;
 
-  let authStatus = 'CONFIGURED';
-  let apiResponseData: any = null;
-  let connectionMode: 'LIVE_SP_API' | 'SIMULATED_READONLY' = 'SIMULATED_READONLY';
-  let errorMessage: string | null = null;
-
+  // Audit Finding 3 (Order 013):
+  // Never present synthetic or mock values as real stock when live SP-API is offline.
   if (!clientId || !clientSecret || !refreshToken) {
-    authStatus = 'CREDENTIALS_MISSING_IN_ENV';
-  } else {
-    try {
-      // Step 1: LWA Access Token
-      const tokenRes = await fetch('https://api.amazon.com/auth/o2/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          grant_type: 'refresh_token',
-          client_id: clientId,
-          client_secret: clientSecret,
-          refresh_token: refreshToken,
-        }),
-      });
-
-      if (tokenRes.ok) {
-        const tokenJson = await tokenRes.json();
-        const accessToken = tokenJson.access_token;
-
-        // Step 2: Fetch FBA Inventory Summaries
-        const spRes = await fetch(
-          `https://sellingpartnerapi-na.amazon.com/fba/inventory/v1/summaries?details=true&granularityType=Marketplace&granularityId=ATVPDKIKX0DER&sellerSkus=${encodeURIComponent(
-            sku
-          )}`,
-          {
-            headers: {
-              'x-amz-access-token': accessToken,
-              'User-Agent': 'HelpUS-FBA-Suite/1.0 (Language=NodeJS)',
-            },
-          }
-        );
-
-        if (spRes.ok) {
-          apiResponseData = await spRes.json();
-          connectionMode = 'LIVE_SP_API';
-        } else {
-          const errText = await spRes.text();
-          errorMessage = `SP-API HTTP ${spRes.status}: ${errText.slice(0, 300)}`;
-        }
-      } else {
-        const errText = await tokenRes.text();
-        errorMessage = `LWA Token Error HTTP ${tokenRes.status}: ${errText.slice(0, 300)}`;
-      }
-    } catch (err: any) {
-      errorMessage = err?.message || 'Falha de conexão com endpoint SP-API';
-    }
-  }
-
-  // Graceful fallback to verified read-only balance if offline or sandbox
-  if (!apiResponseData) {
-    apiResponseData = {
-      granularity: {
-        granularityType: 'Marketplace',
-        granularityId: 'ATVPDKIKX0DER',
+    return NextResponse.json(
+      {
+        success: false,
+        status: 'CREDENTIALS_MISSING',
+        connectionMode: 'OFFLINE',
+        targetMarketplace: 'Amazon US (ATVPDKIKX0DER)',
+        asin,
+        sku,
+        durationMs: Date.now() - startTime,
+        error: 'Credenciais de integração Amazon SP-API (AMAZON_SP_CLIENT_ID / REFRESH_TOKEN) não configuradas no ambiente.',
+        data: null,
       },
-      inventorySummaries: [
-        {
-          asin,
-          fnSku: 'X004SAMPLEFNSKU',
-          sellerSku: sku,
-          condition: 'NewItem',
-          inventoryDetails: {
-            fulfillableQuantity: 50,
-            inboundWorkingQuantity: 0,
-            inboundShippedQuantity: 0,
-            inboundReceivingQuantity: 0,
-            reservedQuantity: {
-              totalReservedQuantity: 1,
-              pendingCustomerOrderQuantity: 1,
-              pendingTransshipmentQuantity: 0,
-              fcProcessingQuantity: 0,
-            },
-            researchingQuantity: {
-              totalResearchingQuantity: 0,
-            },
-            unfulfillableQuantity: {
-              totalUnfulfillableQuantity: 0,
-              customerDamagedQuantity: 0,
-              warehouseDamagedQuantity: 0,
-              distributorDamagedQuantity: 0,
-              carrierDamagedQuantity: 0,
-              defectiveQuantity: 0,
-              expiredQuantity: 0,
-            },
-          },
-          lastUpdatedTime: new Date().toISOString(),
-          productName: 'HelpUS Reusable Silicone Cable Ties 20-Pack - Amazon US FBA',
-          totalQuantity: 51,
-        },
-      ],
-    };
+      { status: 503 }
+    );
   }
 
-  const durationMs = Date.now() - startTime;
+  try {
+    // Step 1: LWA Access Token
+    const tokenRes = await fetch('https://api.amazon.com/auth/o2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+      }),
+    });
 
-  return NextResponse.json({
-    success: true,
-    connectionMode,
-    authStatus,
-    targetMarketplace: 'Amazon US (ATVPDKIKX0DER)',
-    asin,
-    sku,
-    durationMs,
-    notice: errorMessage ? `Nota de fallback: ${errorMessage}` : 'Conexão ativa e sincronizada.',
-    data: apiResponseData,
-  });
+    if (!tokenRes.ok) {
+      const errText = await tokenRes.text();
+      return NextResponse.json(
+        {
+          success: false,
+          status: 'LWA_AUTH_FAILED',
+          connectionMode: 'OFFLINE',
+          targetMarketplace: 'Amazon US (ATVPDKIKX0DER)',
+          asin,
+          sku,
+          durationMs: Date.now() - startTime,
+          error: `Falha na autenticação LWA (HTTP ${tokenRes.status}): ${errText.slice(0, 300)}`,
+          data: null,
+        },
+        { status: 502 }
+      );
+    }
+
+    const tokenJson = await tokenRes.json();
+    const accessToken = tokenJson.access_token;
+
+    // Step 2: Query SP-API FBA Inventory Summaries
+    const spRes = await fetch(
+      `https://sellingpartnerapi-na.amazon.com/fba/inventory/v1/summaries?details=true&granularityType=Marketplace&granularityId=ATVPDKIKX0DER&sellerSkus=${encodeURIComponent(
+        sku
+      )}`,
+      {
+        headers: {
+          'x-amz-access-token': accessToken,
+          'User-Agent': 'HelpUS-FBA-Suite/1.0 (Language=NodeJS)',
+        },
+      }
+    );
+
+    if (!spRes.ok) {
+      const errText = await spRes.text();
+      return NextResponse.json(
+        {
+          success: false,
+          status: 'SP_API_ERROR',
+          connectionMode: 'OFFLINE',
+          targetMarketplace: 'Amazon US (ATVPDKIKX0DER)',
+          asin,
+          sku,
+          durationMs: Date.now() - startTime,
+          error: `Falha ao consultar SP-API FBA Inventory (HTTP ${spRes.status}): ${errText.slice(0, 300)}`,
+          data: null,
+        },
+        { status: 502 }
+      );
+    }
+
+    const apiResponseData = await spRes.json();
+
+    return NextResponse.json({
+      success: true,
+      status: 'ONLINE',
+      connectionMode: 'LIVE_SP_API',
+      targetMarketplace: 'Amazon US (ATVPDKIKX0DER)',
+      asin,
+      sku,
+      durationMs: Date.now() - startTime,
+      data: apiResponseData,
+    });
+  } catch (err: any) {
+    return NextResponse.json(
+      {
+        success: false,
+        status: 'CONNECTION_EXCEPTION',
+        connectionMode: 'OFFLINE',
+        targetMarketplace: 'Amazon US (ATVPDKIKX0DER)',
+        asin,
+        sku,
+        durationMs: Date.now() - startTime,
+        error: `Exceção de rede ao contatar Amazon SP-API: ${err.message || String(err)}`,
+        data: null,
+      },
+      { status: 500 }
+    );
+  }
 }

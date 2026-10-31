@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const result = transferInventory(sku, fromWarehouse, toWarehouse, quantity, notes);
+      const result = await transferInventory(sku, fromWarehouse, toWarehouse, quantity, notes);
       return NextResponse.json({
         ok: result.success,
         message: result.message,
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const result = recordSaleOrder({
+      const result = await recordSaleOrder({
         sku,
         quantity,
         marketplace,
