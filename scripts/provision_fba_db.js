@@ -1,10 +1,12 @@
+// Credentials must be provided at runtime, never committed to source control.
+if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required.');
 const { Client } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
 async function provisionDatabase() {
   const rootClient = new Client({
-    connectionString: 'postgres://postgres:@dmLocal1993@localhost:5432/postgres'
+    connectionString: process.env.DATABASE_URL
   });
   await rootClient.connect();
   
@@ -20,7 +22,7 @@ async function provisionDatabase() {
 
   // Now connect to helpus_fba_suite and apply schema.sql
   const fbaClient = new Client({
-    connectionString: 'postgres://postgres:@dmLocal1993@localhost:5432/helpus_fba_suite'
+    connectionString: process.env.DATABASE_URL
   });
   await fbaClient.connect();
   console.log("Connected to 'helpus_fba_suite'. Applying schema.sql...");
