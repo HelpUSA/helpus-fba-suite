@@ -20,7 +20,7 @@ function request(url, options = {}) {
 }
 
 async function probe() {
-  console.log('--- PROBING PRODUCTION WITH NEON POSTGRESQL (dpl_9RrwJyTbkxnDjsNzSG5E23NEU5NQ) ---');
+  console.log('--- PROBING PRODUCTION WITH NEON POSTGRESQL (dpl_GmEvHqpqFWKJmUutFqossbLJXr83) ---');
 
   // 1. GET /api/inventory (connected to Neon PostgreSQL with Commercial Privacy)
   const invRes = await request('https://fba.helpusbr.com/api/inventory');
