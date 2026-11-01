@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getErpState, recordSaleOrder } from '@/lib/erpStore';
+import { getAuthoritativeErpState, recordSaleOrder } from '@/lib/erpStore';
+import { validateApiRequest } from '@/lib/authGuard';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const state = getErpState();
+    const auth = validateApiRequest(req, false);
+    if (!auth.authorized) {
+      return NextResponse.json({ ok: false, message: auth.reason }, { status: 403 });
+    }
+
+    const state = await getAuthoritativeErpState();
     return NextResponse.json({
       ok: true,
       orders: state.orders || [],
@@ -18,6 +24,11 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = validateApiRequest(req, true);
+    if (!auth.authorized) {
+      return NextResponse.json({ ok: false, message: auth.reason || 'Não autorizado para faturar pedidos.' }, { status: 403 });
+    }
+
     const body = await req.json();
     const { sku, quantity, marketplace, customerCity, orderNumber, salePrice } = body;
 
@@ -28,7 +39,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = recordSaleOrder({
+    const result = await recordSaleOrder({
       sku,
       quantity,
       marketplace,

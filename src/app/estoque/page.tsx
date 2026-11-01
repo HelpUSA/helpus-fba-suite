@@ -363,13 +363,21 @@ export default function EstoqueMultiArmazemPage() {
                 <div>
                   <span className="text-[10px] text-slate-500 block">Saldo Físico</span>
                   <span className="text-lg font-extrabold text-white">
-                    {totalUnits} <span className="text-xs text-slate-500 font-normal">un</span>
+                    {summary?.totalUnits != null ? (
+                      <>
+                        {summary.totalUnits} <span className="text-xs text-slate-500 font-normal">un</span>
+                      </>
+                    ) : (
+                      <span className="text-xs text-slate-500 font-normal">Restrito (Auth)</span>
+                    )}
                   </span>
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] text-slate-500 block">Custo Imobilizado</span>
                   <span className="text-xs font-bold text-slate-300">
-                    {isUS ? '$' : 'R$'} {totalValue.toFixed(2)}
+                    {summary?.totalValue != null
+                      ? `${isUS ? '$' : 'R$'} ${summary.totalValue.toFixed(2)}`
+                      : 'Restrito (Auth)'}
                   </span>
                 </div>
               </div>
@@ -447,7 +455,7 @@ export default function EstoqueMultiArmazemPage() {
                           <div className="font-semibold text-white font-sans text-xs truncate max-w-xs">{item.title}</div>
                           <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1.5">
                             <span>{isUS ? '🇺🇸' : '🇧🇷'} SKU: {item.sku}</span>
-                            <span>• Custo: {item.currency === 'USD' ? '$' : 'R$'} {item.unitCost?.toFixed(2)}</span>
+                            <span>• Custo: {item.unitCost != null ? `${item.currency === 'USD' ? '$' : 'R$'} ${item.unitCost.toFixed(2)}` : 'Restrito (Auth Requerida)'}</span>
                           </div>
                         </div>
                       </div>
@@ -483,7 +491,7 @@ export default function EstoqueMultiArmazemPage() {
 
                     {/* Total Stock */}
                     <td className="py-3.5 px-4 text-center font-bold text-white text-sm">
-                      {item.totalStock} un
+                      {item.totalStock != null ? `${item.totalStock} un` : <span className="text-slate-500 font-normal text-xs">Restrito</span>}
                     </td>
 
                     {/* Action */}

@@ -14,7 +14,9 @@ import {
   ExternalLink,
   X,
   FileText,
-  Boxes
+  Boxes,
+  Scale,
+  RotateCcw
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -57,6 +59,20 @@ export default function Sidebar() {
       label: t.navEstoque,
       icon: Boxes,
       badge: 'MULTI',
+      highlight: true,
+    },
+    {
+      href: '/dre',
+      label: t.navDre,
+      icon: Scale,
+      badge: 'P1',
+      highlight: true,
+    },
+    {
+      href: '/devolucoes',
+      label: t.navDevolucoes,
+      icon: RotateCcw,
+      badge: 'P3',
       highlight: true,
     },
     {

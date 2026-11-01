@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseNfeXml } from '@/lib/nfeParser';
 import { registerNfeInbound } from '@/lib/erpStore';
+import { validateApiRequest } from '@/lib/authGuard';
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = validateApiRequest(req, true);
+    if (!auth.authorized) {
+      return NextResponse.json({ ok: false, message: auth.reason || 'Não autorizado para importar NF-e.' }, { status: 403 });
+    }
+
     let xmlContent = '';
     const contentType = req.headers.get('content-type') || '';
 
@@ -38,7 +44,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Register inbound into ERP store
-    const result = registerNfeInbound(parsedData);
+    const result = await registerNfeInbound(parsedData);
 
     return NextResponse.json({
       ok: true,
