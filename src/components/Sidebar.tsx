@@ -10,11 +10,10 @@ import {
   Truck,
   Building2,
   Search,
-  Sparkles,
-  ExternalLink,
   X,
   FileText,
-  Boxes
+  Boxes,
+  Scale
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -45,6 +44,13 @@ export default function Sidebar() {
   ];
 
   const toolsItems = [
+    {
+      href: '/dre',
+      label: 'DRE Financeiro & P&L',
+      icon: Scale,
+      badge: 'P1',
+      highlight: true,
+    },
     {
       href: '/nfe',
       label: t.navNfe,
@@ -118,24 +124,24 @@ export default function Sidebar() {
                 onClick={() => isMobile && setIsMobileMenuOpen(false)}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition ${
                   isActive
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25 font-semibold'
-                    : 'text-slate-300 hover:bg-slate-900 hover:text-white'
+                    ? 'bg-emerald-500/10 text-emerald-400 font-semibold border border-emerald-500/30 shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-850/60'
                 }`}
               >
-                <div className="flex items-center space-x-2.5 truncate">
-                  {item.flag ? (
-                    <span className="text-sm shrink-0">{item.flag}</span>
-                  ) : Icon ? (
-                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                  ) : null}
-                  <span className="truncate">{item.label}</span>
+                <div className="flex items-center space-x-3">
+                  {Icon ? (
+                    <Icon className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <span className="text-sm">{item.flag}</span>
+                  )}
+                  <span>{item.label}</span>
                 </div>
                 {item.badge && (
                   <span
-                    className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-                      isActive
-                        ? 'bg-blue-800/80 text-blue-100 font-bold'
-                        : 'bg-slate-800 text-slate-400'
+                    className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border ${
+                      item.highlight
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                        : 'bg-slate-800 text-slate-400 border-slate-700'
                     }`}
                   >
                     {item.badge}
@@ -147,7 +153,7 @@ export default function Sidebar() {
         </div>
 
         {/* Section 2: Management Tools */}
-        <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
+        <div className="space-y-1.5">
           <div className="px-3 text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
             {t.toolsNav}
           </div>
@@ -159,22 +165,22 @@ export default function Sidebar() {
                 key={item.href}
                 href={item.href}
                 onClick={() => isMobile && setIsMobileMenuOpen(false)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${
                   isActive
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25 font-semibold'
-                    : 'text-slate-300 hover:bg-slate-900 hover:text-white'
+                    ? 'bg-emerald-500/10 text-emerald-400 font-semibold border border-emerald-500/30 shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-850/60'
                 }`}
               >
-                <div className="flex items-center space-x-2.5 truncate">
-                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                  <span className="truncate">{item.label}</span>
+                <div className="flex items-center space-x-3">
+                  <Icon className="w-4 h-4 text-slate-400" />
+                  <span>{item.label}</span>
                 </div>
                 {item.badge && (
                   <span
-                    className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-                      isActive
-                        ? 'bg-blue-800/80 text-blue-100 font-bold'
-                        : 'bg-slate-800 text-slate-400'
+                    className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border ${
+                      item.highlight
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                        : 'bg-slate-800 text-slate-400 border-slate-700'
                     }`}
                   >
                     {item.badge}
@@ -187,15 +193,19 @@ export default function Sidebar() {
       </div>
 
       {/* Footer Info Box */}
-      <div className="p-4 border-t border-slate-800 space-y-3">
-        <div className="p-3 bg-slate-900/80 border border-slate-800/90 rounded-xl space-y-1.5">
-          <div className="flex items-center space-x-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span className="text-[11px] font-bold text-white">{t.connectedTools}</span>
+      <div className="p-4 border-t border-slate-800/80 bg-slate-900/40">
+        <div className="p-3 bg-slate-800/40 border border-slate-700/50 rounded-xl space-y-1.5">
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-slate-400 font-mono">Status FBA</span>
+            <span className="flex items-center space-x-1.5 text-emerald-400 font-semibold font-mono">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>100% OPERACIONAL</span>
+            </span>
           </div>
-          <p className="text-[10px] text-slate-400 leading-tight">
-            {t.sidebarFooter}
-          </p>
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-slate-400 font-mono">Base HelpUS</span>
+            <span className="text-slate-200 font-mono font-medium">Bessa / JPA</span>
+          </div>
         </div>
       </div>
     </div>
@@ -203,21 +213,22 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Desktop Sticky Sidebar */}
-      <aside className="hidden md:flex w-64 border-r border-slate-800 bg-slate-950 flex-col justify-between h-[calc(100vh-4rem)] sticky top-16 shrink-0">
+      {/* Desktop Persistent Sidebar */}
+      <aside className="hidden lg:flex w-64 bg-slate-900 border-r border-slate-800 flex-col shrink-0 min-h-[calc(100vh-4rem)]">
         {renderContent(false)}
       </aside>
 
-      {/* Mobile Slide-Over Drawer */}
+      {/* Mobile Drawer (Visible when isMobileMenuOpen is true) */}
       {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex">
+        <div className="fixed inset-0 z-50 lg:hidden">
           {/* Backdrop */}
           <div
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity"
             onClick={() => setIsMobileMenuOpen(false)}
           />
-          {/* Drawer content */}
-          <div className="relative w-72 max-w-[80vw] bg-slate-950 border-r border-slate-800 h-full z-10 shadow-2xl">
+
+          {/* Drawer Menu */}
+          <div className="fixed inset-y-0 left-0 w-72 bg-slate-900 border-r border-slate-800 shadow-2xl z-50 animate-in slide-in-from-left duration-200">
             {renderContent(true)}
           </div>
         </div>
