@@ -47,11 +47,6 @@ export default function NfeImportPage() {
   const [ptaxRate, setPtaxRate] = useState<number>(5.40);
   const [showBrlConversion, setShowBrlConversion] = useState<boolean>(true);
 
-  // Load existing invoices on mount
-  useEffect(() => {
-    fetchInvoices();
-  }, []);
-
   const fetchInvoices = async () => {
     try {
       const res = await fetch('/api/invoices');
@@ -63,6 +58,11 @@ export default function NfeImportPage() {
       console.error('Error fetching invoices:', e);
     }
   };
+
+  // Load existing invoices on mount
+  useEffect(() => {
+    fetchInvoices();
+  }, []);
 
   const handleFileUpload = (file: File) => {
     const reader = new FileReader();
