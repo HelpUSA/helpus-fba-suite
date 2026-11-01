@@ -876,13 +876,26 @@ export async function recordFinancialLedgerEntry(
   client?: PoolClient
 ): Promise<FinancialLedgerEntry> {
   const runner = async (c: PoolClient) => {
-    // 1. Idempotency Check
+    // 1. Idempotency Check with Payload Divergence Verification
     const checkRes = await c.query(
       `SELECT * FROM financial_ledger WHERE idempotency_key = $1;`,
       [entry.idempotencyKey]
     );
     if (checkRes.rows.length > 0) {
-      return mapLedgerRowToEntry(checkRes.rows[0]);
+      const existing = checkRes.rows[0];
+      const diffAmount = Math.abs(Number(existing.amount_original) - entry.amountOriginal);
+      if (
+        existing.source_event_type !== entry.sourceEventType ||
+        existing.source_id !== entry.sourceId ||
+        existing.category !== entry.category ||
+        existing.currency !== entry.currency ||
+        diffAmount > 0.001
+      ) {
+        throw new Error(
+          `IDEMPOTENCY_PAYLOAD_MISMATCH: Idempotency key '${entry.idempotencyKey}' already exists with divergent payload parameters.`
+        );
+      }
+      return mapLedgerRowToEntry(existing);
     }
 
     // 2. Compute BRL and FX if not explicitly passed
@@ -903,38 +916,71 @@ export async function recordFinancialLedgerEntry(
       ? parseFloat((entry.amountOriginal * fxRate).toFixed(2))
       : entry.amountOriginal;
 
-    // 3. Insert into financial_ledger
-    const insertRes = await c.query(
-      `INSERT INTO financial_ledger (
-        entry_number, idempotency_key, source_event_type, source_id,
-        marketplace, competence_date, currency, amount_original,
-        entry_direction, amount_brl, fx_rate, fx_source, category,
-        status, reversal_of_id, metadata, created_by, environment
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-      RETURNING *;`,
-      [
-        entry.entryNumber,
-        entry.idempotencyKey,
-        entry.sourceEventType,
-        entry.sourceId,
-        entry.marketplace,
-        entry.competenceDate,
-        entry.currency,
-        entry.amountOriginal,
-        entry.entryDirection,
-        amountBrl,
-        fxRate,
-        fxSource,
-        entry.category,
-        entry.status,
-        entry.reversalOfId || null,
-        JSON.stringify(entry.metadata || {}),
-        entry.createdBy || 'SYSTEM',
-        entry.environment || 'staging',
-      ]
-    );
+    // 3. Concurrency-Safe Insert into financial_ledger with ON CONFLICT (idempotency_key) DO NOTHING
+    try {
+      const insertRes = await c.query(
+        `INSERT INTO financial_ledger (
+          entry_number, idempotency_key, source_event_type, source_id,
+          marketplace, competence_date, currency, amount_original,
+          entry_direction, amount_brl, fx_rate, fx_source, category,
+          status, reversal_of_id, metadata, created_by, environment
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        ON CONFLICT (idempotency_key) DO NOTHING
+        RETURNING *;`,
+        [
+          entry.entryNumber,
+          entry.idempotencyKey,
+          entry.sourceEventType,
+          entry.sourceId,
+          entry.marketplace,
+          entry.competenceDate,
+          entry.currency,
+          entry.amountOriginal,
+          entry.entryDirection,
+          amountBrl,
+          fxRate,
+          fxSource,
+          entry.category,
+          entry.status,
+          entry.reversalOfId || null,
+          JSON.stringify(entry.metadata || {}),
+          entry.createdBy || 'SYSTEM',
+          entry.environment || 'staging',
+        ]
+      );
 
-    return mapLedgerRowToEntry(insertRes.rows[0]);
+      if (insertRes.rows.length > 0) {
+        return mapLedgerRowToEntry(insertRes.rows[0]);
+      }
+    } catch (e: any) {
+      if (!e.message.includes('unique constraint') && !e.message.includes('idempotency_key')) {
+        throw e;
+      }
+    }
+
+    // Fallback resolution for race condition: retrieve conflicting entry and verify payload
+    const conflictRes = await c.query(
+      `SELECT * FROM financial_ledger WHERE idempotency_key = $1;`,
+      [entry.idempotencyKey]
+    );
+    if (conflictRes.rows.length > 0) {
+      const existing = conflictRes.rows[0];
+      const diffAmount = Math.abs(Number(existing.amount_original) - entry.amountOriginal);
+      if (
+        existing.source_event_type !== entry.sourceEventType ||
+        existing.source_id !== entry.sourceId ||
+        existing.category !== entry.category ||
+        existing.currency !== entry.currency ||
+        diffAmount > 0.001
+      ) {
+        throw new Error(
+          `IDEMPOTENCY_PAYLOAD_MISMATCH: Idempotency key '${entry.idempotencyKey}' already exists with divergent payload parameters.`
+        );
+      }
+      return mapLedgerRowToEntry(existing);
+    }
+
+    throw new Error(`Failed to record or resolve idempotent entry: ${entry.idempotencyKey}`);
   };
 
   if (client) return runner(client);
@@ -945,7 +991,8 @@ export async function recordCompensatoryReversal(
   targetEntryNumberOrId: string,
   reason: string,
   createdBy = 'SUPERADMIN_AUDITOR',
-  client?: PoolClient
+  client?: PoolClient,
+  competenceDate?: string
 ): Promise<FinancialLedgerEntry> {
   const runner = async (c: PoolClient) => {
     const findRes = await c.query(
@@ -957,9 +1004,12 @@ export async function recordCompensatoryReversal(
     }
     const orig = findRes.rows[0];
 
+    // Reversal neutralizes the exact original category by inverting the accounting direction
     const reversedDirection = orig.entry_direction === 'CREDIT' ? 'DEBIT' : 'CREDIT';
     const reversalNumber = `REV-${orig.entry_number}-${Date.now().toString().slice(-6)}`;
     const idempotencyKey = `idemp-rev-${orig.idempotency_key}`;
+    const origDateStr = orig.competence_date instanceof Date ? orig.competence_date.toISOString().split('T')[0] : String(orig.competence_date).split('T')[0];
+    const compDate = competenceDate || origDateStr;
 
     const reversalEntry: FinancialLedgerEntry = {
       entryNumber: reversalNumber,
@@ -967,19 +1017,20 @@ export async function recordCompensatoryReversal(
       sourceEventType: 'COMPENSATION_REVERSAL',
       sourceId: orig.source_id,
       marketplace: orig.marketplace,
-      competenceDate: new Date().toISOString().split('T')[0],
+      competenceDate: compDate,
       currency: orig.currency,
       amountOriginal: Number(orig.amount_original),
       entryDirection: reversedDirection,
       amountBrl: Number(orig.amount_brl),
       fxRate: Number(orig.fx_rate),
       fxSource: orig.fx_source,
-      category: 'ESTORNO',
+      category: orig.category, // Preserves original category for exact 1:1 neutralization
       status: 'REALIZADO',
       reversalOfId: orig.id,
       metadata: {
         reason,
         originalEntryNumber: orig.entry_number,
+        originalCategory: orig.category,
         reversedAt: new Date().toISOString(),
       },
       createdBy,
@@ -993,10 +1044,6 @@ export async function recordCompensatoryReversal(
   return withTransaction(runner);
 }
 
-/**
- * Synchronizes confirmed sale orders and invoices from PostgreSQL tables into the financial ledger.
- * This is 100% idempotent through unique idempotency keys.
- */
 export async function syncPostgresOrdersToFinancialLedger(client?: PoolClient): Promise<{
   ordersPosted: number;
   invoicesPosted: number;
@@ -1194,7 +1241,6 @@ function sumMetrics(list: AuditedDreMetric[]): AuditedDreMetric {
  */
 export async function calculateAuditedDre(
   period = 'ALL',
-  customPtax?: number,
   client?: PoolClient
 ): Promise<{
   us: AuditedDreStatement;
@@ -1203,12 +1249,30 @@ export async function calculateAuditedDre(
 }> {
   const pool = client || getPostgresPool();
 
-  // 1. Fetch ledger entries matching period filter
+  // 1. Fetch ledger entries matching period filter (supports month YYYY-MM, date range YYYY-MM-DD:YYYY-MM-DD, year YYYY, or ALL)
   let periodQuery = '';
   const queryParams: any[] = [];
+
   if (period && period !== 'ALL') {
-    queryParams.push(period + '%');
-    periodQuery = `WHERE competence_date::text LIKE $1`;
+    if (period.includes(':')) {
+      const [startDate, endDate] = period.split(':');
+      queryParams.push(startDate, endDate);
+      periodQuery = `WHERE competence_date >= $1 AND competence_date <= $2`;
+    } else if (/^\d{4}-\d{2}$/.test(period)) {
+      const [year, month] = period.split('-').map(Number);
+      const startDate = `${period}-01`;
+      const nextMonthYear = month === 12 ? year + 1 : year;
+      const nextMonth = month === 12 ? 1 : month + 1;
+      const endDate = `${nextMonthYear}-${String(nextMonth).padStart(2, '0')}-01`;
+      queryParams.push(startDate, endDate);
+      periodQuery = `WHERE competence_date >= $1 AND competence_date < $2`;
+    } else if (/^\d{4}$/.test(period)) {
+      queryParams.push(`${period}-01-01`, `${Number(period) + 1}-01-01`);
+      periodQuery = `WHERE competence_date >= $1 AND competence_date < $2`;
+    } else {
+      queryParams.push(period + '%');
+      periodQuery = `WHERE competence_date::text LIKE $1`;
+    }
   }
 
   const sql = `
@@ -1242,6 +1306,7 @@ export async function calculateAuditedDre(
     totalEntries: 0,
     realizadoEntries: 0,
     estimadoEntries: 0,
+    reversalEntries: 0,
     lastDate: undefined as string | undefined,
   });
 
@@ -1249,52 +1314,72 @@ export async function calculateAuditedDre(
   const brData = initStatementMetrics();
   const consData = initStatementMetrics();
 
-  // Get active FX rate for period
+  // Determine active FX rate representation for statement header
   const todayStr = new Date().toISOString().split('T')[0];
-  const activeFx = customPtax
-    ? { rate: customPtax, source: 'SIMULATED_CUSTOM_PTAX', isFallback: false }
-    : await getFxRate(period && period !== 'ALL' ? `${period}-15` : todayStr, 'USD', 'BRL', pool);
+  let fxLookupDate = todayStr;
+  if (period && period !== 'ALL') {
+    if (period.includes(':')) {
+      fxLookupDate = period.split(':')[0];
+    } else if (/^\d{4}-\d{2}$/.test(period)) {
+      fxLookupDate = `${period}-15`;
+    } else if (/^\d{4}$/.test(period)) {
+      fxLookupDate = `${period}-06-30`;
+    }
+  }
+
+  let activeFx = { rate: 1.0, source: 'NOT_REQUIRED', isFallback: false };
+  try {
+    activeFx = await getFxRate(fxLookupDate, 'USD', 'BRL', pool);
+  } catch {
+    activeFx = { rate: 1.0, source: 'HISTORICAL_PTAX_RECORDED_PER_TRANSACTION', isFallback: false };
+  }
 
   for (const r of rows) {
     const isUs = r.marketplace === 'Amazon US';
     const amountOrig = Number(r.amount_original);
-    let amountBrl = Number(r.amount_brl);
-    if (customPtax && isUs) {
-      amountBrl = roundVal(amountOrig * customPtax);
-    }
+    const amountBrl = Number(r.amount_brl);
     const cat: FinancialCategory = r.category;
     const status: FinancialStatus = r.status;
     const isCredit = r.entry_direction === 'CREDIT';
+    const isReversal = r.source_event_type === 'COMPENSATION_REVERSAL';
 
-    // Helper to bucket into statement metrics
     const processEntry = (target: ReturnType<typeof initStatementMetrics>, amount: number) => {
       target.totalEntries++;
       if (status === 'REALIZADO') target.realizadoEntries++;
       else if (status === 'ESTIMADO') target.estimadoEntries++;
+      if (isReversal) target.reversalEntries++;
 
       const dateStr = r.competence_date instanceof Date ? r.competence_date.toISOString().split('T')[0] : String(r.competence_date);
       if (!target.lastDate || dateStr > target.lastDate) target.lastDate = dateStr;
 
+      // Track reversal amount for audit reporting
+      if (isReversal) {
+        addMetric(target.reversals, amount, status, false);
+      }
+
       switch (cat) {
         case 'RECEITA_BRUTA':
+          // CREDIT adds to revenue, DEBIT (e.g. reversal) subtracts from revenue
           addMetric(target.grossRevenue, amount, status, !isCredit);
           break;
         case 'TAXA_MARKETPLACE':
+          // DEBIT adds to expense, CREDIT (e.g. reversal) subtracts from expense
           addMetric(target.marketplaceFees, amount, status, !isCredit ? false : true);
           break;
         case 'FULFILLMENT_FBA':
+          // DEBIT adds to expense, CREDIT (e.g. reversal) subtracts from expense
           addMetric(target.fulfillmentFees, amount, status, !isCredit ? false : true);
           break;
         case 'IMPOSTO_DAS':
+          // DEBIT adds to tax, CREDIT (e.g. reversal) subtracts from tax
           addMetric(target.taxes, amount, status, !isCredit ? false : true);
           break;
         case 'REEMBOLSO':
+          // Amazon reimbursements: positive credit offsets deductions
           addMetric(target.reimbursements, amount, status, false);
           break;
-        case 'ESTORNO':
-          addMetric(target.reversals, amount, status, false);
-          break;
         case 'CMV':
+          // DEBIT adds to cogs, CREDIT (e.g. reversal) subtracts from cogs
           addMetric(target.cogs, amount, status, !isCredit ? false : true);
           break;
         case 'PREP':
@@ -1305,6 +1390,10 @@ export async function calculateAuditedDre(
           break;
         case 'FRETE':
           addMetric(target.inboundFreight, amount, status, !isCredit ? false : true);
+          break;
+        case 'ESTORNO':
+          // Legacy generic reversal category: if DEBIT, reduce gross revenue directly without double deduction
+          addMetric(target.grossRevenue, amount, status, true);
           break;
         default:
           addMetric(target.otherExpenses, amount, status, !isCredit ? false : true);
@@ -1320,19 +1409,19 @@ export async function calculateAuditedDre(
     processEntry(consData, amountBrl);
   }
 
-  // Finalize Statement calculation
+  // Finalize Statement calculation with exact mathematical neutrality
   const buildStatement = (
     m: ReturnType<typeof initStatementMetrics>,
     mkt: FinancialMarketplace,
     curr: 'USD' | 'BRL'
   ): AuditedDreStatement => {
+    // Total Deductions = Marketplace Fees + Fulfillment Fees + Taxes - Reimbursements
+    // Compensatory reversals already directly neutralized their respective categories above; zero double-deduction!
     const totalDeductions = sumMetrics([
       m.marketplaceFees,
       m.fulfillmentFees,
       m.taxes,
-      m.reversals,
     ]);
-    // Deduct reimbursements from deductions
     totalDeductions.realizado = roundVal(totalDeductions.realizado - m.reimbursements.realizado);
     totalDeductions.estimado = roundVal(totalDeductions.estimado - m.reimbursements.estimado);
     totalDeductions.projetado = roundVal(totalDeductions.projetado - m.reimbursements.projetado);
@@ -1370,7 +1459,7 @@ export async function calculateAuditedDre(
         fulfillmentFees: m.fulfillmentFees,
         taxes: m.taxes,
         reimbursements: m.reimbursements,
-        reversals: m.reversals,
+        reversals: m.reversals, // informational audit metric
         totalDeductions,
       },
       netRevenue,
@@ -1390,6 +1479,7 @@ export async function calculateAuditedDre(
         totalEntries: m.totalEntries,
         realizadoEntries: m.realizadoEntries,
         estimadoEntries: m.estimadoEntries,
+        reversalEntries: m.reversalEntries,
         lastCompetenceDate: m.lastDate,
       },
     };

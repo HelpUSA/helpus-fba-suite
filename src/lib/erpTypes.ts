@@ -312,6 +312,7 @@ export interface AuditedDreStatement {
     totalEntries: number;
     realizadoEntries: number;
     estimadoEntries: number;
+    reversalEntries?: number;
     lastCompetenceDate?: string;
   };
 }

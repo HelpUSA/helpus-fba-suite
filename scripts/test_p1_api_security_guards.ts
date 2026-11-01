@@ -67,7 +67,7 @@ async function runSecurityTests() {
   assert(resProd.status === 503, 'Produção não homologada retorna HTTP 503 Fail-Closed');
   assert(dataProd.status === 'P1_NOT_HOMOLOGATED', 'Status retornado é P1_NOT_HOMOLOGATED');
 
-  // Test 3: Authenticated request in STAGING mode (when P1_HOMOLOGATED_PRODUCTION='true' or development)
+  // Test 3: Authenticated request in STAGING mode
   (process.env as any).NODE_ENV = 'development';
   delete process.env.VERCEL;
 
@@ -81,6 +81,17 @@ async function runSecurityTests() {
   assert(resDev.status === 200, 'Acesso autenticado de operador em staging/dev retorna HTTP 200 OK');
   assert(dataDev.success === true, 'DRE calculada com sucesso');
   assert(dataDev.statements && dataDev.statements.consolidated, 'Estrutura consolidada presente no retorno');
+
+  // Test 4: Reject client-supplied PTAX parameter (Commit bf07968 / Order 046 Item 7)
+  const reqPtaxRejection = new NextRequest('http://localhost:3000/api/finance/dre?period=2026-10&ptax=6.15', {
+    headers: {
+      'x-api-key': 'staging-operator-token-valid-12345',
+    },
+  });
+  const resPtax = await getDreRoute(reqPtaxRejection);
+  const dataPtax = await resPtax.json();
+  assert(resPtax.status === 400, 'Requisição com PTAX customizada é rejeitada com HTTP 400 Bad Request');
+  assert(dataPtax.error === 'PTAX customizada não permitida na DRE auditada.', 'Mensagem de bloqueio de PTAX customizada confirmada');
 
   console.log('\n================================================================');
   console.log(`RESULTADO DA SEGURANÇA P1: ${passed}/${total} TESTES APROVADOS! (100% PASS)`);

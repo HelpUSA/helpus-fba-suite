@@ -22,7 +22,6 @@ import {
 export default function DrePage() {
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<'CONSOLIDATED' | 'US' | 'BR'>('CONSOLIDATED');
-  const [ptaxRate, setPtaxRate] = useState<number>(5.75);
   const [period, setPeriod] = useState<string>('2026-10');
   const [apiKey, setApiKey] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -68,9 +67,7 @@ export default function DrePage() {
       if (res.ok) {
         const json = await res.json();
         setStatements(json.statements);
-        if (json.statements?.consolidated?.fxRateApplied) {
-          setPtaxRate(json.statements.consolidated.fxRateApplied);
-        }
+        // Authoritative FX rate is embedded directly in consolidated statements
       } else {
         const data = await res.json().catch(() => ({}));
         setErrorStatus({

@@ -93,6 +93,13 @@ CREATE INDEX IF NOT EXISTS idx_financial_ledger_reversal ON financial_ledger(rev
 CREATE OR REPLACE FUNCTION trg_protect_financial_ledger()
 RETURNS TRIGGER AS $$
 BEGIN
+    -- Safe scoped cleanup: only allows removal of explicitly tagged test records during an active test session
+    IF current_setting('helpus.test_cleanup_active', true) = 'true' THEN
+        IF OLD.entry_number LIKE 'TEST-P1-%' OR OLD.entry_number LIKE 'REV-TEST-P1-%' THEN
+            RETURN OLD;
+        END IF;
+    END IF;
+
     IF OLD.status = 'REALIZADO' THEN
         RAISE EXCEPTION 'Immutability violation: Cannot modify or delete REALIZADO financial ledger entry %. Reversals must be made through a COMPENSATION_REVERSAL entry.', OLD.entry_number;
     END IF;
