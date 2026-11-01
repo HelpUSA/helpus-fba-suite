@@ -44,8 +44,14 @@ __pycache__/
 *.tsbuildinfo
 next-env.d.ts
 
+# backups and database dumps
+backups/
+*.dump
+*.sql.gz
+
 # python
 __pycache__/
 *.pyc
 
 .vercel
+.env*

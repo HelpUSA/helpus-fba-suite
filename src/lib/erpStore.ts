@@ -9,12 +9,47 @@ import {
   StockMovement,
   StoredInvoice,
   SaleOrder,
+  ReturnRecord,
+  DreStatement,
   ErpDatabaseState,
 } from './erpTypes';
+import {
+  isPostgresConfigured,
+  persistSaleOrderPostgres,
+  persistStockTransferPostgres,
+  persistNfeInboundPostgres,
+  persistUsCommercialInvoicePostgres,
+  persistReturnPostgres,
+  persistBatchReceiveBraspressPostgres,
+  persistBatchReceiveFbaPostgres,
+  fetchAuthoritativePostgresState,
+} from './db/postgresClient';
 
 export * from './erpTypes';
 
-const DB_FILE_PATH = path.join(process.cwd(), 'data', 'erp_database.json');
+export function getResolvedDbFilePath(): string {
+  if (process.env.ERP_STORAGE_PATH) {
+    return process.env.ERP_STORAGE_PATH;
+  }
+  // In Vercel serverless / AWS Lambda, use /tmp (guaranteed writable)
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || (typeof process !== 'undefined' && process.cwd && process.cwd().startsWith('/var/task'))) {
+    return path.join('/tmp', 'helpus_erp_database.json');
+  }
+  return path.join(process.cwd(), 'data', 'erp_database.json');
+}
+
+// In-memory cache singleton to guarantee zero HTTP 500 in serverless cold starts
+let inMemoryDbState: ErpDatabaseState | null = null;
+
+// Official SKU Registry / De-Para Cross Reference
+export const NATIVOS_SKU_CATALOG: Record<string, { sku: string; title: string; defaultSalePrice: number; defaultCost: number }> = {
+  '001': { sku: 'NAT-RESV-60CAPS', title: 'Resveratrol Softgel 60 Cápsulas - Nativos do Brasil', defaultSalePrice: 79.90, defaultCost: 25.76 },
+  '002': { sku: 'NAT-MAG-TREON-60C', title: 'Magnésio L-Treonato 60 Cápsulas - Nativos do Brasil', defaultSalePrice: 59.90, defaultCost: 15.80 },
+  '003': { sku: 'NAT-COQ10-VITE-60C', title: 'Co-Q10 com Vitamina E 60 Cápsulas - Nativos do Brasil', defaultSalePrice: 69.90, defaultCost: 21.26 },
+  '004': { sku: 'NAT-COLAG-VITC-60C', title: 'Colágeno Hidrolisado com Vit C 60 Cápsulas - Nativos do Brasil', defaultSalePrice: 54.90, defaultCost: 17.93 },
+  '005': { sku: 'NAT-6MAG-60C', title: '6 Magnésios Quelato & Complex 60 Cápsulas - Nativos do Brasil', defaultSalePrice: 59.90, defaultCost: 18.41 },
+  '006': { sku: 'NAT-NAC-60C', title: 'NAC Acetilcisteína 60 Cápsulas - Nativos do Brasil', defaultSalePrice: 54.90, defaultCost: 17.57 },
+};
 
 // Initial seed data from Master Context
 const INITIAL_DATABASE_STATE: ErpDatabaseState = {
@@ -307,42 +342,153 @@ const INITIAL_DATABASE_STATE: ErpDatabaseState = {
       status: 'CONFIRMED'
     }
   ],
+  returns: [
+    {
+      id: 'ret-pilot-us-001',
+      returnDate: '2026-10-31T09:00:00Z',
+      orderNumber: '114-8392019-2819201',
+      sku: 'HU-SIL-CABLE-FBA-2026',
+      productTitle: 'HelpUS Reusable Silicone Cable Ties 20-Pack',
+      quantity: 1,
+      reason: 'CUSTOMER_REMORSE',
+      disposition: 'SELLABLE',
+      warehouse: 'WH-USA-FBA-RYY2',
+      status: 'RESTOCKED',
+      reimbursementAmount: 0,
+      currency: 'USD',
+      notes: 'Devolução de cliente lacrada. Item inspecionado pelo FBA e retornado ao saldo vendável.',
+      isDemo: false,
+    }
+  ],
 };
 
 export function getErpState(): ErpDatabaseState {
+  if (inMemoryDbState) {
+    return JSON.parse(JSON.stringify(inMemoryDbState));
+  }
+
+  const filePath = getResolvedDbFilePath();
   try {
-    if (fs.existsSync(DB_FILE_PATH)) {
-      const data = fs.readFileSync(DB_FILE_PATH, 'utf-8');
-      return JSON.parse(data);
+    if (fs.existsSync(/*turbopackIgnore: true*/ filePath)) {
+      const data = fs.readFileSync(/*turbopackIgnore: true*/ filePath, 'utf-8');
+      inMemoryDbState = JSON.parse(data);
+      return JSON.parse(JSON.stringify(inMemoryDbState));
     }
   } catch (error) {
-    console.error('Error reading database file, using default seed:', error);
+    console.warn('[ErpStore] Warning reading database file from disk, using initial state:', error);
   }
 
-  const dir = path.dirname(DB_FILE_PATH);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  fs.writeFileSync(DB_FILE_PATH, JSON.stringify(INITIAL_DATABASE_STATE, null, 2), 'utf-8');
-  return INITIAL_DATABASE_STATE;
-}
-
-export function saveErpState(state: ErpDatabaseState): void {
+  inMemoryDbState = JSON.parse(JSON.stringify(INITIAL_DATABASE_STATE));
   try {
-    state.lastUpdated = new Date().toISOString();
-    const dir = path.dirname(DB_FILE_PATH);
+    const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(DB_FILE_PATH, JSON.stringify(state, null, 2), 'utf-8');
-  } catch (error) {
-    console.error('Error saving database file:', error);
+    fs.writeFileSync(filePath, JSON.stringify(INITIAL_DATABASE_STATE, null, 2), 'utf-8');
+  } catch (writeErr) {
+    console.warn('[ErpStore] Running in read-only / serverless container. Writable state maintained in memory:', writeErr);
+  }
+  return JSON.parse(JSON.stringify(inMemoryDbState));
+}
+
+/**
+ * Authoritative ERP state reader (Order 014 - Finding 1).
+ * Reads directly from PostgreSQL tables when DATABASE_URL is configured.
+ */
+export async function getAuthoritativeErpState(options: { allowDemoInProd?: boolean } = {}): Promise<ErpDatabaseState> {
+  const isProd = process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL);
+  const hasPg = isPostgresConfigured();
+
+  if (hasPg) {
+    try {
+      const pgState = await fetchAuthoritativePostgresState();
+      if (pgState) {
+        inMemoryDbState = pgState;
+        return pgState;
+      }
+    } catch (err: any) {
+      console.error('[ErpStore] Falha ao consultar estado autoritativo do PostgreSQL:', err?.message || err);
+      if (isProd) {
+        throw new Error('[PostgreSQL Indisponível] Falha ao consultar estado autoritativo do banco de dados em produção.');
+      }
+    }
+  }
+
+  // Fail-Safe / Zero-Faux: In production without PostgreSQL, block returning seed mock data as authoritative real operational data (Order 016 - Item 1)
+  if (isProd && !options.allowDemoInProd) {
+    throw new Error(
+      '[PostgreSQL Não Configurado] Leituras operacionais autoritativas bloqueadas em produção: DATABASE_URL ausente. O ERP HelpUS exige banco relacional ativo em ambiente de produção para garantir integridade e prevenir exibição de dados sintéticos não persistidos.'
+    );
+  }
+
+  const state = getErpState();
+  if (isProd) {
+    state.storageEngine = 'DEMO_READ_ONLY_UNPERSISTED';
+  }
+  return state;
+}
+
+export function saveErpState(state: ErpDatabaseState): void {
+  const isVercelServerless = Boolean(process.env.VERCEL) || (typeof process !== 'undefined' && process.cwd && process.cwd().startsWith('/var/task'));
+  const hasPostgres = isPostgresConfigured();
+
+  // Fail-Closed Governance (Finding 2 - Order 013 & Order 014):
+  // When PostgreSQL is configured, it is the sole authority; in-memory cache is synchronized,
+  // and secondary disk write is non-fatal to avoid throwing HTTP 500 after SQL COMMIT.
+  state.storageEngine = hasPostgres ? 'POSTGRES' : (isVercelServerless ? 'EPHEMERAL_CACHE' : 'PERSISTENT_JSON');
+  state.lastUpdated = new Date().toISOString();
+  inMemoryDbState = JSON.parse(JSON.stringify(state));
+
+  if (hasPostgres) {
+    // Zero dual-write risk: PostgreSQL has committed; memory cache is updated.
+    return;
+  }
+
+  // In production serverless without PostgreSQL, reject mutations immediately.
+  if (isVercelServerless && process.env.NODE_ENV === 'production') {
+    throw new Error(
+      '[Persistência Fail-Closed] Gravação bloqueada: PostgreSQL não configurado no ambiente de produção Vercel. Operações mutativas do ERP exigem banco relacional definitivo para evitar perda silenciosa de dados.'
+    );
+  }
+
+  const filePath = getResolvedDbFilePath();
+  try {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    const tmpPath = `${filePath}.tmp.${Date.now()}`;
+    fs.writeFileSync(tmpPath, JSON.stringify(state, null, 2), 'utf-8');
+    fs.renameSync(tmpPath, filePath);
+  } catch (error: any) {
+    console.error('[ErpStore] Erro de persistência em disco:', error?.message || error);
+    if (process.env.NODE_ENV === 'production') {
+      throw error;
+    }
   }
 }
 
-export function registerNfeInbound(nfe: NfeData): { success: boolean; invoiceId: string; message: string } {
-  const state = getErpState();
+export async function registerNfeInbound(nfe: NfeData): Promise<{ success: boolean; invoiceId: string; message: string }> {
+  const isVercelServerless = Boolean(process.env.VERCEL) || (typeof process !== 'undefined' && process.cwd && process.cwd().startsWith('/var/task'));
+  const hasPostgres = isPostgresConfigured();
 
+  if (isVercelServerless && !hasPostgres && process.env.NODE_ENV === 'production') {
+    throw new Error('[Persistência Fail-Closed] Importação NF-e bloqueada: PostgreSQL não configurado no ambiente de produção.');
+  }
+
+  if (hasPostgres) {
+    // Authoritative PostgreSQL transaction with ACID guarantees & row locking
+    const invoiceId = await persistNfeInboundPostgres(nfe);
+    inMemoryDbState = await fetchAuthoritativePostgresState();
+    return {
+      success: true,
+      invoiceId,
+      message: `NF-e Nº ${nfe.numeroNF} processada com sucesso no PostgreSQL! ${nfe.itens.length} produtos adicionados ao estoque em trânsito da Braspress.`,
+    };
+  }
+
+  // Local development / fallback without PostgreSQL
+  const state = getErpState();
   const existing = state.invoices.find((inv) => inv.chave === nfe.chaveAcesso);
   if (existing) {
     return {
@@ -352,17 +498,22 @@ export function registerNfeInbound(nfe: NfeData): { success: boolean; invoiceId:
     };
   }
 
-  const invoiceId = `inv-nfe-${nfe.numeroNF}-${Date.now()}`;
+  let invoiceId = `inv-nfe-${nfe.numeroNF}-${Date.now()}`;
   const now = new Date().toISOString();
 
   const detalhesItens = nfe.itens.map((item) => {
-    let sku = `NAT-${item.cProd}`;
-    if (item.xProd.toUpperCase().includes('RESVERATROL')) sku = 'NAT-RESV-60CAPS';
-    else if (item.xProd.toUpperCase().includes('TREONATO')) sku = 'NAT-MAG-TREON-60C';
-    else if (item.xProd.toUpperCase().includes('CO-Q10') || item.xProd.toUpperCase().includes('CQ10')) sku = 'NAT-COQ10-VITE-60C';
-    else if (item.xProd.toUpperCase().includes('COLAGENO')) sku = 'NAT-COLAG-VITC-60C';
-    else if (item.xProd.toUpperCase().includes('6 MAGNESIOS')) sku = 'NAT-6MAG-60C';
-    else if (item.xProd.toUpperCase().includes('ACETILCISTEINA') || item.xProd.toUpperCase().includes('NAC')) sku = 'NAT-NAC-60C';
+    const cleanCode = item.cProd.replace(/\D/g, '').slice(-3);
+    const catalogEntry = NATIVOS_SKU_CATALOG[cleanCode];
+    let sku = catalogEntry ? catalogEntry.sku : `NAT-${item.cProd.replace(/[^a-zA-Z0-9-]/g, '')}`;
+
+    if (!catalogEntry) {
+      if (item.xProd.toUpperCase().includes('RESVERATROL')) sku = 'NAT-RESV-60CAPS';
+      else if (item.xProd.toUpperCase().includes('TREONATO')) sku = 'NAT-MAG-TREON-60C';
+      else if (item.xProd.toUpperCase().includes('CO-Q10') || item.xProd.toUpperCase().includes('CQ10')) sku = 'NAT-COQ10-VITE-60C';
+      else if (item.xProd.toUpperCase().includes('COLAGENO')) sku = 'NAT-COLAG-VITC-60C';
+      else if (item.xProd.toUpperCase().includes('6 MAGNESIOS')) sku = 'NAT-6MAG-60C';
+      else if (item.xProd.toUpperCase().includes('ACETILCISTEINA') || item.xProd.toUpperCase().includes('NAC')) sku = 'NAT-NAC-60C';
+    }
 
     let product = state.items.find((p) => p.sku === sku);
 
@@ -443,13 +594,31 @@ export function registerNfeInbound(nfe: NfeData): { success: boolean; invoiceId:
   };
 }
 
-export function transferInventory(
+export async function transferInventory(
   sku: string,
   fromWarehouse: WarehouseCode,
   toWarehouse: WarehouseCode,
   quantity: number,
   notes?: string
-): { success: boolean; message: string } {
+): Promise<{ success: boolean; message: string }> {
+  const isVercelServerless = Boolean(process.env.VERCEL) || (typeof process !== 'undefined' && process.cwd && process.cwd().startsWith('/var/task'));
+  const hasPostgres = isPostgresConfigured();
+
+  if (isVercelServerless && !hasPostgres && process.env.NODE_ENV === 'production') {
+    throw new Error('[Persistência Fail-Closed] Transferência de estoque bloqueada: PostgreSQL não configurado no ambiente de produção.');
+  }
+
+  if (hasPostgres) {
+    // Authoritative PostgreSQL transaction with row locks SELECT ... FOR UPDATE
+    await persistStockTransferPostgres({ sku, fromWh: fromWarehouse, toWh: toWarehouse, quantity, notes });
+    inMemoryDbState = await fetchAuthoritativePostgresState();
+    return {
+      success: true,
+      message: `${quantity} unidades do SKU ${sku} transferidas com sucesso para ${WAREHOUSES[toWarehouse].name} via transação PostgreSQL.`,
+    };
+  }
+
+  // Local development / fallback without PostgreSQL
   const state = getErpState();
   const product = state.items.find((p) => p.sku === sku);
 
@@ -489,7 +658,24 @@ export function transferInventory(
   };
 }
 
-export function batchReceiveBraspress(): { success: boolean; movedCount: number; totalUnits: number; message: string } {
+export async function batchReceiveBraspress(): Promise<{ success: boolean; movedCount: number; totalUnits: number; message: string }> {
+  const isVercelServerless = Boolean(process.env.VERCEL) || (typeof process !== 'undefined' && process.cwd && process.cwd().startsWith('/var/task'));
+  const hasPostgres = isPostgresConfigured();
+
+  if (isVercelServerless && !hasPostgres && process.env.NODE_ENV === 'production') {
+    throw new Error('[Persistência Fail-Closed] Recebimento em lote bloqueado: PostgreSQL não configurado no ambiente de produção.');
+  }
+
+  if (hasPostgres) {
+    const res = await persistBatchReceiveBraspressPostgres();
+    return {
+      success: true,
+      movedCount: res.movedCount,
+      totalUnits: res.totalUnits,
+      message: `Sucesso! Recebidas ${res.totalUnits} unidades (${res.movedCount} SKUs) na Base Bessa via transação PostgreSQL.`,
+    };
+  }
+
   const state = getErpState();
   let movedCount = 0;
   let totalUnits = 0;
@@ -546,7 +732,23 @@ export function batchReceiveBraspress(): { success: boolean; movedCount: number;
   };
 }
 
-export function batchReceiveFba(): { success: boolean; totalUnits: number; message: string } {
+export async function batchReceiveFba(): Promise<{ success: boolean; totalUnits: number; message: string }> {
+  const isVercelServerless = Boolean(process.env.VERCEL) || (typeof process !== 'undefined' && process.cwd && process.cwd().startsWith('/var/task'));
+  const hasPostgres = isPostgresConfigured();
+
+  if (isVercelServerless && !hasPostgres && process.env.NODE_ENV === 'production') {
+    throw new Error('[Persistência Fail-Closed] Recebimento FBA bloqueado: PostgreSQL não configurado no ambiente de produção.');
+  }
+
+  if (hasPostgres) {
+    const res = await persistBatchReceiveFbaPostgres();
+    return {
+      success: true,
+      totalUnits: res.totalUnits,
+      message: `Sucesso! ${res.totalUnits} unidades transferidas e auditadas no Amazon FBA RYY2 via transação PostgreSQL.`,
+    };
+  }
+
   const state = getErpState();
   let totalUnits = 0;
   const now = new Date().toISOString();
@@ -607,14 +809,59 @@ export function batchReceiveFba(): { success: boolean; totalUnits: number; messa
   };
 }
 
-export function recordSaleOrder(params: {
+export async function recordSaleOrder(params: {
   sku: string;
   quantity: number;
   marketplace: 'Amazon US' | 'Amazon BR' | 'Mercado Livre';
   customerCity?: string;
   orderNumber?: string;
   salePrice?: number;
-}): { success: boolean; message: string; order?: SaleOrder } {
+}): Promise<{ success: boolean; message: string; order?: SaleOrder }> {
+  const isVercelServerless = Boolean(process.env.VERCEL) || (typeof process !== 'undefined' && process.cwd && process.cwd().startsWith('/var/task'));
+  const hasPostgres = isPostgresConfigured();
+
+  if (isVercelServerless && !hasPostgres && process.env.NODE_ENV === 'production') {
+    throw new Error('[Persistência Fail-Closed] Faturamento bloqueado: PostgreSQL não configurado no ambiente de produção.');
+  }
+
+  const isUS = params.marketplace === 'Amazon US';
+  const sourceWh: WarehouseCode = isUS ? 'WH-USA-FBA-RYY2' : 'WH-BR-LOCAL-JPA';
+  const orderNum = params.orderNumber || (isUS ? `114-${Math.floor(1000000 + Math.random() * 9000000)}-${Math.floor(1000000 + Math.random() * 9000000)}` : `PED-BR-${Date.now().toString().slice(-6)}`);
+
+  if (hasPostgres) {
+    // Construct order model and delegate validation directly to relational row lock in PostgreSQL (Order 016 - Finding 2)
+    const price = params.salePrice || (isUS ? 9.99 : 79.90);
+    const unitCost = isUS ? 1.25 : 25.76;
+    const commission = isUS ? price * 0.15 : price * 0.16;
+    const fulfillmentCost = isUS ? 3.49 : 12.90;
+    const grossProfit = parseFloat(((price - unitCost - commission - fulfillmentCost) * params.quantity).toFixed(2));
+
+    const newOrder: SaleOrder = {
+      id: `ord-${Date.now()}`,
+      orderNumber: orderNum,
+      marketplace: params.marketplace,
+      date: new Date().toISOString(),
+      sku: params.sku,
+      productTitle: params.sku,
+      quantity: params.quantity,
+      salePrice: price,
+      unitCost,
+      grossProfit,
+      customerCity: params.customerCity || (isUS ? 'Miami, FL' : 'São Paulo/SP'),
+      warehouseSource: sourceWh,
+      status: 'CONFIRMED',
+    };
+
+    await persistSaleOrderPostgres(newOrder);
+    inMemoryDbState = await fetchAuthoritativePostgresState();
+    return {
+      success: true,
+      message: `Venda registrada com sucesso no PostgreSQL! Pedido ${orderNum} faturado (-${params.quantity} un em ${WAREHOUSES[sourceWh].name}).`,
+      order: newOrder,
+    };
+  }
+
+  // Local development / fallback without PostgreSQL
   const state = getErpState();
   if (!state.orders) state.orders = [];
 
@@ -623,10 +870,7 @@ export function recordSaleOrder(params: {
     return { success: false, message: `SKU ${params.sku} não encontrado no catálogo.` };
   }
 
-  const isUS = params.marketplace === 'Amazon US';
-  const sourceWh: WarehouseCode = isUS ? 'WH-USA-FBA-RYY2' : 'WH-BR-LOCAL-JPA';
   const availableStock = product.balances[sourceWh] || 0;
-
   if (availableStock < params.quantity) {
     return {
       success: false,
@@ -634,18 +878,11 @@ export function recordSaleOrder(params: {
     };
   }
 
-  // Deduct stock
-  product.balances[sourceWh] -= params.quantity;
-  product.totalStock = Object.values(product.balances).reduce((a, b) => a + b, 0);
-
   const price = params.salePrice || product.salePrice;
   const unitCost = product.unitCost;
-  // Estimate net profit after commission & fba/frete
   const commission = isUS ? price * 0.15 : price * 0.16;
   const fulfillmentCost = isUS ? 3.49 : 12.90;
   const grossProfit = parseFloat(((price - unitCost - commission - fulfillmentCost) * params.quantity).toFixed(2));
-
-  const orderNum = params.orderNumber || (isUS ? `114-${Math.floor(1000000 + Math.random() * 9000000)}-${Math.floor(1000000 + Math.random() * 9000000)}` : `PED-BR-${Date.now().toString().slice(-6)}`);
 
   const newOrder: SaleOrder = {
     id: `ord-${Date.now()}`,
@@ -663,9 +900,10 @@ export function recordSaleOrder(params: {
     status: 'CONFIRMED',
   };
 
-  state.orders.unshift(newOrder);
+  product.balances[sourceWh] -= params.quantity;
+  product.totalStock = Object.values(product.balances).reduce((a, b) => a + b, 0);
 
-  // Stock Movement Log
+  state.orders.unshift(newOrder);
   state.movements.unshift({
     id: `mov-sale-${Date.now()}`,
     timestamp: new Date().toISOString(),
@@ -687,7 +925,7 @@ export function recordSaleOrder(params: {
   };
 }
 
-export function registerUsCommercialInvoice(data: {
+export async function registerUsCommercialInvoice(data: {
   invoiceNumber: string;
   vendorName: string;
   vendorDoc?: string;
@@ -695,7 +933,25 @@ export function registerUsCommercialInvoice(data: {
   shippingCost?: number;
   prepCost?: number;
   date?: string;
-}): { success: boolean; invoiceId: string; message: string } {
+}): Promise<{ success: boolean; invoiceId: string; message: string }> {
+  const isVercelServerless = Boolean(process.env.VERCEL) || (typeof process !== 'undefined' && process.cwd && process.cwd().startsWith('/var/task'));
+  const hasPostgres = isPostgresConfigured();
+
+  if (isVercelServerless && !hasPostgres && process.env.NODE_ENV === 'production') {
+    throw new Error('[Persistência Fail-Closed] Registro de Commercial Invoice bloqueado: PostgreSQL não configurado no ambiente de produção.');
+  }
+
+  if (hasPostgres) {
+    const invoiceId = await persistUsCommercialInvoicePostgres(data);
+    inMemoryDbState = await fetchAuthoritativePostgresState();
+    return {
+      success: true,
+      invoiceId,
+      message: `Commercial Invoice ${data.invoiceNumber} registrada com sucesso no PostgreSQL! ${data.items.length} produto(s) adicionados ao armazém Prep Ninjas (UT).`,
+    };
+  }
+
+  // Local development / fallback without PostgreSQL
   const state = getErpState();
   const now = new Date().toISOString();
   const invoiceId = `inv-us-${data.invoiceNumber.replace(/[^a-zA-Z0-9]/g, '-')}-${Date.now()}`;
@@ -713,7 +969,6 @@ export function registerUsCommercialInvoice(data: {
   const totalInvoice = totalItemsVal + (data.shippingCost || 0) + (data.prepCost || 0);
 
   const detalhesItens = data.items.map((it) => {
-    // Distribute freight & prep proportionally
     const itemTotal = it.quantity * it.unitPrice;
     const share = totalItemsVal > 0 ? itemTotal / totalItemsVal : 1;
     const itemExtra = ((data.shippingCost || 0) + (data.prepCost || 0)) * share;
@@ -793,3 +1048,217 @@ export function registerUsCommercialInvoice(data: {
     message: `Commercial Invoice ${data.invoiceNumber} registrada com sucesso! ${data.items.length} produto(s) adicionados ao armazém Prep Ninjas (UT).`,
   };
 }
+
+export function getReturnsState(): ReturnRecord[] {
+  const state = getErpState();
+  return state.returns || [];
+}
+
+export async function addReturnRecord(data: Omit<ReturnRecord, 'id'>): Promise<ReturnRecord> {
+  const isVercelServerless = Boolean(process.env.VERCEL) || (typeof process !== 'undefined' && process.cwd && process.cwd().startsWith('/var/task'));
+  const hasPostgres = isPostgresConfigured();
+
+  if (isVercelServerless && !hasPostgres && process.env.NODE_ENV === 'production') {
+    throw new Error('[Persistência Fail-Closed] Registro de devolução bloqueado: PostgreSQL não configurado no ambiente de produção.');
+  }
+
+  const newReturn: ReturnRecord = {
+    ...data,
+    id: `ret-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+  };
+
+  if (hasPostgres) {
+    // Authoritative PostgreSQL transaction with row locking (Order 016 - Item 2)
+    await persistReturnPostgres(newReturn);
+    inMemoryDbState = await fetchAuthoritativePostgresState();
+    return newReturn;
+  }
+
+  // Local development / fallback without PostgreSQL
+  const state = getErpState();
+  if (!state.returns) {
+    state.returns = [];
+  }
+  state.returns.unshift(newReturn);
+
+  if (newReturn.status === 'RESTOCKED') {
+    const item = state.items.find((p) => p.sku === newReturn.sku);
+    if (item) {
+      item.balances[newReturn.warehouse] = (item.balances[newReturn.warehouse] || 0) + newReturn.quantity;
+      item.totalStock = Object.values(item.balances).reduce((a, b) => a + b, 0);
+      state.movements.unshift({
+        id: `mov-ret-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        sku: newReturn.sku,
+        productTitle: newReturn.productTitle,
+        type: 'ADJUSTMENT',
+        toWarehouse: newReturn.warehouse,
+        quantity: newReturn.quantity,
+        documentRef: `Return ${newReturn.id}`,
+        notes: `Estoque reposto por devolução inspecionada (${newReturn.reason}).`,
+      });
+    }
+  }
+
+  saveErpState(state);
+  return newReturn;
+}
+
+export function calculateDre(period: string = '2026-10', customPtax: number = 5.75): {
+  us: DreStatement;
+  br: DreStatement;
+  consolidated: DreStatement;
+} {
+  const state = getErpState();
+  const orders = state.orders || [];
+
+  // US calculations
+  const usOrders = orders.filter((o) => o.marketplace === 'Amazon US');
+  const usGrossRevenue = parseFloat(usOrders.reduce((sum, o) => sum + o.salePrice * o.quantity, 0).toFixed(2));
+  const usTotalUnits = usOrders.reduce((sum, o) => sum + o.quantity, 0);
+  const usMarketplaceFees = parseFloat((usGrossRevenue * 0.15).toFixed(2));
+  const usFulfillmentFees = parseFloat((usTotalUnits * 3.25).toFixed(2));
+  const usTaxes = 0;
+  const usTotalDeductions = parseFloat((usMarketplaceFees + usFulfillmentFees + usTaxes).toFixed(2));
+  const usNetRevenue = parseFloat((usGrossRevenue - usTotalDeductions).toFixed(2));
+  const usCogs = parseFloat(usOrders.reduce((sum, o) => sum + o.unitCost * o.quantity, 0).toFixed(2));
+  const usGrossProfit = parseFloat((usNetRevenue - usCogs).toFixed(2));
+  const usGrossMarginPercent = usGrossRevenue > 0 ? parseFloat(((usGrossProfit / usGrossRevenue) * 100).toFixed(1)) : 0;
+
+  const usPrepFees = parseFloat((usTotalUnits * 0.35).toFixed(2));
+  const usStorageFees = parseFloat((usTotalUnits * 0.05).toFixed(2));
+  const usInboundFreight = parseFloat((usTotalUnits * 0.20).toFixed(2));
+  const usTotalOpEx = parseFloat((usPrepFees + usStorageFees + usInboundFreight).toFixed(2));
+  const usNetOperatingIncome = parseFloat((usGrossProfit - usTotalOpEx).toFixed(2));
+  const usNetMarginPercent = usGrossRevenue > 0 ? parseFloat(((usNetOperatingIncome / usGrossRevenue) * 100).toFixed(1)) : 0;
+
+  const usStatement: DreStatement = {
+    period,
+    country: 'US',
+    currency: 'USD',
+    ptaxRate: customPtax,
+    grossRevenue: usGrossRevenue,
+    deductions: {
+      marketplaceFees: usMarketplaceFees,
+      fulfillmentFees: usFulfillmentFees,
+      taxes: usTaxes,
+      totalDeductions: usTotalDeductions,
+    },
+    netRevenue: usNetRevenue,
+    cogs: usCogs,
+    grossProfit: usGrossProfit,
+    grossMarginPercent: usGrossMarginPercent,
+    operatingExpenses: {
+      prepFees: usPrepFees,
+      storageFees: usStorageFees,
+      inboundFreight: usInboundFreight,
+      totalOpEx: usTotalOpEx,
+    },
+    netOperatingIncome: usNetOperatingIncome,
+    netMarginPercent: usNetMarginPercent,
+  };
+
+  // BR calculations
+  const brOrders = orders.filter((o) => o.marketplace === 'Amazon BR' || o.marketplace === 'Mercado Livre');
+  const brGrossRevenue = parseFloat(brOrders.reduce((sum, o) => sum + o.salePrice * o.quantity, 0).toFixed(2));
+  const brTotalUnits = brOrders.reduce((sum, o) => sum + o.quantity, 0);
+  const brMarketplaceFees = parseFloat((brGrossRevenue * 0.16).toFixed(2));
+  const brFulfillmentFees = parseFloat((brTotalUnits * 14.50).toFixed(2));
+  const brTaxes = parseFloat((brGrossRevenue * 0.06).toFixed(2));
+  const brTotalDeductions = parseFloat((brMarketplaceFees + brFulfillmentFees + brTaxes).toFixed(2));
+  const brNetRevenue = parseFloat((brGrossRevenue - brTotalDeductions).toFixed(2));
+  const brCogs = parseFloat(brOrders.reduce((sum, o) => sum + o.unitCost * o.quantity, 0).toFixed(2));
+  const brGrossProfit = parseFloat((brNetRevenue - brCogs).toFixed(2));
+  const brGrossMarginPercent = brGrossRevenue > 0 ? parseFloat(((brGrossProfit / brGrossRevenue) * 100).toFixed(1)) : 0;
+
+  const brPrepFees = parseFloat((brTotalUnits * 2.50).toFixed(2));
+  const brStorageFees = 0;
+  const brInboundFreight = parseFloat((brTotalUnits * 1.80).toFixed(2));
+  const brTotalOpEx = parseFloat((brPrepFees + brStorageFees + brInboundFreight).toFixed(2));
+  const brNetOperatingIncome = parseFloat((brGrossProfit - brTotalOpEx).toFixed(2));
+  const brNetMarginPercent = brGrossRevenue > 0 ? parseFloat(((brNetOperatingIncome / brGrossRevenue) * 100).toFixed(1)) : 0;
+
+  const brStatement: DreStatement = {
+    period,
+    country: 'BR',
+    currency: 'BRL',
+    ptaxRate: customPtax,
+    grossRevenue: brGrossRevenue,
+    deductions: {
+      marketplaceFees: brMarketplaceFees,
+      fulfillmentFees: brFulfillmentFees,
+      taxes: brTaxes,
+      totalDeductions: brTotalDeductions,
+    },
+    netRevenue: brNetRevenue,
+    cogs: brCogs,
+    grossProfit: brGrossProfit,
+    grossMarginPercent: brGrossMarginPercent,
+    operatingExpenses: {
+      prepFees: brPrepFees,
+      storageFees: brStorageFees,
+      inboundFreight: brInboundFreight,
+      totalOpEx: brTotalOpEx,
+    },
+    netOperatingIncome: brNetOperatingIncome,
+    netMarginPercent: brNetMarginPercent,
+  };
+
+  // Consolidated (converted to BRL at PTAX)
+  const usInBrlGross = usGrossRevenue * customPtax;
+  const usInBrlNetRev = usNetRevenue * customPtax;
+  const usInBrlCogs = usCogs * customPtax;
+  const usInBrlGrossProfit = usGrossProfit * customPtax;
+  const usInBrlOpEx = usTotalOpEx * customPtax;
+  const usInBrlNetOpInc = usNetOperatingIncome * customPtax;
+
+  const consGrossRevenue = parseFloat((usInBrlGross + brGrossRevenue).toFixed(2));
+  const consMarketplaceFees = parseFloat((usMarketplaceFees * customPtax + brMarketplaceFees).toFixed(2));
+  const consFulfillmentFees = parseFloat((usFulfillmentFees * customPtax + brFulfillmentFees).toFixed(2));
+  const consTaxes = parseFloat((usTaxes * customPtax + brTaxes).toFixed(2));
+  const consTotalDeductions = parseFloat((consMarketplaceFees + consFulfillmentFees + consTaxes).toFixed(2));
+  const consNetRevenue = parseFloat((consGrossRevenue - consTotalDeductions).toFixed(2));
+  const consCogs = parseFloat((usInBrlCogs + brCogs).toFixed(2));
+  const consGrossProfit = parseFloat((consNetRevenue - consCogs).toFixed(2));
+  const consGrossMarginPercent = consGrossRevenue > 0 ? parseFloat(((consGrossProfit / consGrossRevenue) * 100).toFixed(1)) : 0;
+
+  const consPrepFees = parseFloat((usPrepFees * customPtax + brPrepFees).toFixed(2));
+  const consStorageFees = parseFloat((usStorageFees * customPtax + brStorageFees).toFixed(2));
+  const consInboundFreight = parseFloat((usInboundFreight * customPtax + brInboundFreight).toFixed(2));
+  const consTotalOpEx = parseFloat((consPrepFees + consStorageFees + consInboundFreight).toFixed(2));
+  const consNetOperatingIncome = parseFloat((consGrossProfit - consTotalOpEx).toFixed(2));
+  const consNetMarginPercent = consGrossRevenue > 0 ? parseFloat(((consNetOperatingIncome / consGrossRevenue) * 100).toFixed(1)) : 0;
+
+  const consolidatedStatement: DreStatement = {
+    period,
+    country: 'CONSOLIDATED',
+    currency: 'BRL',
+    ptaxRate: customPtax,
+    grossRevenue: consGrossRevenue,
+    deductions: {
+      marketplaceFees: consMarketplaceFees,
+      fulfillmentFees: consFulfillmentFees,
+      taxes: consTaxes,
+      totalDeductions: consTotalDeductions,
+    },
+    netRevenue: consNetRevenue,
+    cogs: consCogs,
+    grossProfit: consGrossProfit,
+    grossMarginPercent: consGrossMarginPercent,
+    operatingExpenses: {
+      prepFees: consPrepFees,
+      storageFees: consStorageFees,
+      inboundFreight: consInboundFreight,
+      totalOpEx: consTotalOpEx,
+    },
+    netOperatingIncome: consNetOperatingIncome,
+    netMarginPercent: consNetMarginPercent,
+  };
+
+  return {
+    us: usStatement,
+    br: brStatement,
+    consolidated: consolidatedStatement,
+  };
+}
+
