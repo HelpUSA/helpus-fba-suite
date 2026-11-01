@@ -42,7 +42,7 @@ export default function DrePage() {
         headers['x-api-key'] = apiKey;
       }
 
-      const res = await fetch(`/api/finance/dre?period=${period}&ptax=${ptaxRate}`, {
+      const res = await fetch(`/api/finance/dre?period=${encodeURIComponent(period)}`, {
         headers,
       });
 
