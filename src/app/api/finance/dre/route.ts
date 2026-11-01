@@ -37,11 +37,14 @@ export async function GET(request: NextRequest) {
     // 3. Extract query parameters
     const searchParams = request.nextUrl.searchParams;
     const period = searchParams.get('period') || '2026-10';
-    const ptaxParam = searchParams.get('ptax');
-    const customPtax = ptaxParam ? parseFloat(ptaxParam) : undefined;
+    // Client-supplied exchange rates must not influence audited financial figures.
+    // A separate, clearly labeled simulation endpoint may be implemented in P1.
+    if (searchParams.has('ptax')) {
+      return NextResponse.json({ success: false, error: 'PTAX customizada não permitida na DRE auditada.' }, { status: 400 });
+    }
 
-    // 4. Calculate authoritative DRE from PostgreSQL
-    const dreResult = await calculateAuditedDre(period, customPtax);
+    // 4. Calculate authoritative DRE exclusively from recorded PostgreSQL entries.
+    const dreResult = await calculateAuditedDre(period);
 
     return NextResponse.json({
       success: true,
