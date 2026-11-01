@@ -1,10 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { calculateDre } from '@/lib/erpStore';
+import { validateApiRequest } from '@/lib/authGuard';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
+    // Confidential financial information must never be readable anonymously.
+    const auth = validateApiRequest(request, false, true);
+    if (!auth.authorized) {
+      return NextResponse.json({ success: false, error: auth.reason || 'Acesso financeiro não autorizado' }, { status: 403 });
+    }
+
+    // P1 financial calculations remain provisional until an auditable SQL ledger is homologated.
+    // The route is fail-closed in production, rather than presenting in-memory estimates as actual accounting data.
+    if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+      return NextResponse.json({
+        success: false,
+        status: 'P1_NOT_HOMOLOGATED',
+        message: 'DRE financeira aguardando ledger auditável e homologação da fase P1.'
+      }, { status: 503 });
+    }
     const searchParams = request.nextUrl.searchParams;
     const period = searchParams.get('period') || '2026-10';
     const ptaxParam = searchParams.get('ptax');
