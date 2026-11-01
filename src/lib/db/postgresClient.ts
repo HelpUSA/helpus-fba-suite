@@ -865,13 +865,10 @@ export async function getFxRate(date: string, fromCurr: string, toCurr: string, 
     };
   }
 
-  // 3. Fallback policy (e.g. 5.50 for USD -> BRL)
-  const defaultFallbackRate = fromCurr === 'USD' && toCurr === 'BRL' ? 5.50 : 1.0;
-  return {
-    rate: defaultFallbackRate,
-    source: 'CONSERVATIVE_FALLBACK_POLICY',
-    isFallback: true,
-  };
+  // Never synthesize an exchange rate for authoritative financial records.
+  // Historical prior-close rates above are marked as fallback; callers must
+  // distinguish them from official rates valid on the transaction date.
+  throw new Error('FX_RATE_UNAVAILABLE: No documented rate for requested currency pair and date.');
 }
 
 export async function recordFinancialLedgerEntry(
