@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Erro interno ao processar DRE auditada.',
+        error: 'Erro interno ao processar DRE auditada.',
       },
       { status: 500 }
     );
