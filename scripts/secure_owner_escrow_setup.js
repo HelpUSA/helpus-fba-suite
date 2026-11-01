@@ -280,5 +280,7 @@ if (require.main === module) {
 
 module.exports = {
   runSecureOwnerSetup,
-  runSyntheticOffhostVerification
+  runSyntheticOffhostVerification,
+  verifyPrivateRepoSecurity,
+  assertPrivateRemoteAndCleanIndex
 };
