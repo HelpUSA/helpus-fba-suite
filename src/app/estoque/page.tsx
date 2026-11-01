@@ -52,10 +52,6 @@ export default function EstoqueMultiArmazemPage() {
   
   const [actionMessage, setActionMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
-  useEffect(() => {
-    fetchInventory();
-  }, []);
-
   const fetchInventory = async () => {
     try {
       setIsLoading(true);
@@ -77,6 +73,10 @@ export default function EstoqueMultiArmazemPage() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchInventory();
+  }, []);
 
   const handleExecuteTransfer = async (e: React.FormEvent) => {
     e.preventDefault();

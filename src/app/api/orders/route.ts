@@ -4,7 +4,8 @@ import { validateApiRequest } from '@/lib/authGuard';
 
 export async function GET(req: NextRequest) {
   try {
-    // Customer order data is confidential. Anonymous access is forbidden.\n    const auth = validateApiRequest(req, false, true);
+    // Customer order data is confidential. Anonymous access is forbidden.
+    const auth = validateApiRequest(req, false, true);
     if (!auth.authorized) {
       return NextResponse.json({ ok: false, message: auth.reason }, { status: 403 });
     }

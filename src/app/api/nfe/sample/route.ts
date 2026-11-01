@@ -1,13 +1,19 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { validateApiRequest } from '@/lib/authGuard';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // Fiscal documents contain confidential supplier tax IDs (CNPJ, IE, values)
+  const auth = validateApiRequest(req, false, true);
+  if (!auth.authorized) {
+    return NextResponse.json({ ok: false, message: auth.reason }, { status: 403 });
+  }
   const samplePath = 'D:\\AntiG\\Amazon Seller\\docs\\01_Operacao_Brasil_Nativos\\NF_00002509_Nativos.xml';
 
   try {
-    if (fs.existsSync(samplePath)) {
-      const xmlContent = fs.readFileSync(samplePath, 'utf-8');
+    if (fs.existsSync(/*turbopackIgnore: true*/ samplePath)) {
+      const xmlContent = fs.readFileSync(/*turbopackIgnore: true*/ samplePath, 'utf-8');
       return NextResponse.json({
         ok: true,
         filename: 'NF_00002509_Nativos.xml',

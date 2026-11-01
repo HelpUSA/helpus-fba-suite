@@ -82,6 +82,62 @@ async function testRealHttpNetworkE2E() {
       throw new Error('Falha no acesso autenticado via rede HTTP.');
     }
 
+    // 2a. GET /api/orders ANONIMO (CONFIDENCIALIDADE DE PEDIDOS - BLOQUEIO FAIL-CLOSED)
+    console.log('\n[2a] REQUISICAO HTTP REAL GET /api/orders (ANONIMO - ESPERADO 403)');
+    const ordersAnonRes = await fetch('http://127.0.0.1:' + serverPort + '/api/orders', {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    });
+    console.log('✓ Status HTTP Real /api/orders Anonimo: ' + ordersAnonRes.status + ' (Esperado: 403)');
+    if (ordersAnonRes.status !== 403) {
+      throw new Error('FALHA DE PRIVACIDADE: GET /api/orders anonimo retornou ' + ordersAnonRes.status + ' em vez de 403!');
+    }
+
+    // 2b. GET /api/orders AUTENTICADO (ACESSO RESTRITO MASTER/OPERADOR)
+    console.log('\n[2b] REQUISICAO HTTP REAL GET /api/orders (AUTENTICADO COM TOKEN)');
+    const ordersAuthRes = await fetch('http://127.0.0.1:' + serverPort + '/api/orders', {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'x-helpus-auth-token': authToken
+      }
+    });
+    const ordersAuthData = await ordersAuthRes.json();
+    console.log('✓ Status HTTP Real /api/orders Autenticado: ' + ordersAuthRes.status + ' (Esperado: 200)');
+    console.log('✓ ok: ' + ordersAuthData.ok);
+    console.log('✓ orders count: ' + (ordersAuthData.orders ? ordersAuthData.orders.length : 0));
+    if (ordersAuthRes.status !== 200 || ordersAuthData.ok !== true) {
+      throw new Error('Falha no acesso autenticado a /api/orders!');
+    }
+
+    // 2c. GET /api/invoices ANONIMO (CONFIDENCIALIDADE FISCAL - BLOQUEIO FAIL-CLOSED)
+    console.log('\n[2c] REQUISICAO HTTP REAL GET /api/invoices (ANONIMO - ESPERADO 403)');
+    const invoicesAnonRes = await fetch('http://127.0.0.1:' + serverPort + '/api/invoices', {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    });
+    console.log('✓ Status HTTP Real /api/invoices Anonimo: ' + invoicesAnonRes.status + ' (Esperado: 403)');
+    if (invoicesAnonRes.status !== 403) {
+      throw new Error('FALHA DE PRIVACIDADE: GET /api/invoices anonimo retornou ' + invoicesAnonRes.status + ' em vez de 403!');
+    }
+
+    // 2d. GET /api/invoices AUTENTICADO (ACESSO RESTRITO MASTER/OPERADOR)
+    console.log('\n[2d] REQUISICAO HTTP REAL GET /api/invoices (AUTENTICADO COM TOKEN)');
+    const invoicesAuthRes = await fetch('http://127.0.0.1:' + serverPort + '/api/invoices', {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'x-helpus-auth-token': authToken
+      }
+    });
+    const invoicesAuthData = await invoicesAuthRes.json();
+    console.log('✓ Status HTTP Real /api/invoices Autenticado: ' + invoicesAuthRes.status + ' (Esperado: 200)');
+    console.log('✓ ok: ' + invoicesAuthData.ok);
+    console.log('✓ invoices count: ' + (invoicesAuthData.invoices ? invoicesAuthData.invoices.length : 0));
+    if (invoicesAuthRes.status !== 200 || invoicesAuthData.ok !== true) {
+      throw new Error('Falha no acesso autenticado a /api/invoices!');
+    }
+
     // 3. POST /api/inventory ANÔNIMO (MUTAÇÃO BLOQUEADA FAIL-CLOSED)
     console.log('\n[3/6] REQUISIÇÃO HTTP REAL POST (ANÔNIMO - BLOQUEIO FAIL-CLOSED)');
     const unauthPostRes = await fetch(baseUrl, {
