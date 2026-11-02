@@ -25,7 +25,11 @@ async function main() {
       "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='fx_rates'"
     )).rows.map(row => row.column_name);
     const expected = ['evidence_ref', 'evidence_sha256', 'evidence_kind', 'verified_at', 'verified_by', 'import_batch_id'];
+    const ledgerColumns = (await client.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='financial_ledger'"
+    )).rows.map(row => row.column_name);
     const missing = expected.filter(k => !columns.includes(k));
+    if (!ledgerColumns.includes('fx_rate_id')) missing.push('financial_ledger.fx_rate_id');
     const [privileges, trigger] = await Promise.all([
       client.query(`SELECT
         has_table_privilege('staging_operator','public.fx_rates','SELECT') AS fx_select,
