@@ -40,10 +40,10 @@ async function main() {
         has_table_privilege('staging_operator','public.financial_ledger','INSERT') AS ledger_insert,
         has_table_privilege('staging_operator','public.financial_ledger','UPDATE') AS ledger_update,
         has_table_privilege('staging_operator','public.financial_ledger','DELETE') AS ledger_delete`),
-      client.query("SELECT tgname,tgenabled FROM pg_trigger WHERE tgname IN ('trg_prevent_financial_ledger_tampering','trg_prevent_fx_rates_tampering') AND NOT tgisinternal")
+      client.query("SELECT tgname,tgenabled FROM pg_trigger WHERE tgname IN ('trg_prevent_financial_ledger_tampering','trg_prevent_fx_rates_tampering','trg_p1_require_verified_fx_provenance') AND NOT tgisinternal")
     ]);
     const grants = privileges.rows[0];
-    const protectedTriggers = trigger.rows.every(t => t.tgenabled === 'O') && trigger.rows.length === 2;
+    const protectedTriggers = trigger.rows.every(t => t.tgenabled === 'O') && trigger.rows.length === 3;
     const leastPrivilege = grants.fx_select && !grants.fx_insert && !grants.fx_update && !grants.fx_delete &&
       grants.ledger_select && grants.ledger_insert && !grants.ledger_update && !grants.ledger_delete;
     let totalUsdRealized = null, verifiedUsdRealized = null;
@@ -65,6 +65,8 @@ async function main() {
       fxOperationalReadOnly: !!(grants.fx_select && !grants.fx_insert && !grants.fx_update && !grants.fx_delete),
       ledgerOperationalAppendOnly: !!(grants.ledger_select && grants.ledger_insert && !grants.ledger_update && !grants.ledger_delete),
       triggersEnabled: protectedTriggers,
+      documentaryImporterValidated: false, // This read-only check cannot authenticate external documents.
+      releaseGate: 'BLOCKED_UNTIL_DOCUMENTARY_IMPORTER_AND_REVIEW',
       totalUsdRealized,
       documentedUsdRealized: verifiedUsdRealized,
       gate: missing.length === 0 && leastPrivilege && protectedTriggers && totalUsdRealized === verifiedUsdRealized ? 'PASS_DB_METADATA_ONLY' : 'BLOCKED',
