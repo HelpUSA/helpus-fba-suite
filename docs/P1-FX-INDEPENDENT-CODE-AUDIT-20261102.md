@@ -1,7 +1,7 @@
-# P1 FX — Parecer independente de segurança e proveniência (revisão privada de código)
+# P1 FX — Parecer independente de segurança e proveniência (revisão de código sanitizada em repositório público)
 
 Data: 2026-11-02. Baseline: `47b85fcc9fcabf7e82cc8c7a79a22aac08ab335e`.
-Referências: PR #10, Issue #9, Ordem 049. Escopo: revisão de código GitHub **sem conexão ao Neon**. Esta análise não invalida os resultados locais relatados de 62/62, 14/14, lint/build OK e auditoria dos saldos; apenas não os reexecuta.
+Referências: PR #10, Issue #9, Ordem 049. Escopo: revisão de código GitHub **sem conexão ao Neon**. ATENÇÃO: o repositório GitHub é público; nenhuma evidência documental confidencial, segredo, credencial ou documento bancário deve ser commitado. Esta análise não invalida os resultados locais relatados de 62/62, 14/14, lint/build OK e auditoria dos saldos; apenas não os reexecuta.
 
 ## Achados prioritários
 
