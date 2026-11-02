@@ -54,15 +54,17 @@ async function runStagingMigration() {
   await client.query(sql);
   console.log('✓ Tabelas fx_rates e financial_ledger criadas com sucesso!');
 
-  // Ensure staging_operator has full DML permissions on new tables and sequences
-  console.log("Garantindo permissões para staging_operator em 'helpus_staging'...");
-  await client.query("GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO staging_operator;");
-  await client.query("GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO staging_operator;");
+  // P1-specific least privilege: never grant permissions on every public table.
+  // The operational role may read/append ledger entries and FX observations,
+  // but cannot UPDATE/DELETE/TRUNCATE them or alter their protective triggers.
+  console.log("Aplicando privilégios mínimos da P1 exclusivamente em helpus_staging...");
+  await client.query("REVOKE UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.financial_ledger, public.fx_rates FROM staging_operator;");
+  await client.query("GRANT SELECT, INSERT ON TABLE public.financial_ledger, public.fx_rates TO staging_operator;");
+  // A separate isolated test schema retains DDL rights for disposable test objects.
+  // Never grant blanket privileges to public or to production databases.
   await client.query("CREATE SCHEMA IF NOT EXISTS p1_test_isolated;");
-  await client.query("GRANT ALL ON SCHEMA p1_test_isolated TO staging_operator;");
-  await client.query("GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA p1_test_isolated TO staging_operator;");
-  await client.query("ALTER DEFAULT PRIVILEGES IN SCHEMA p1_test_isolated GRANT ALL ON TABLES TO staging_operator;");
-  console.log("✓ Permissões e schema isolado p1_test_isolated concedidos com sucesso!");
+  await client.query("GRANT USAGE, CREATE ON SCHEMA p1_test_isolated TO staging_operator;");
+  console.log("✓ Grants P1 restritos a SELECT/INSERT; schema de testes isolado.");
 
   await client.end();
 
