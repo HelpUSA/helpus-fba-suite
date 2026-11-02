@@ -59,12 +59,14 @@ async function runStagingMigration() {
   // but cannot UPDATE/DELETE/TRUNCATE them or alter their protective triggers.
   console.log("Aplicando privilégios mínimos da P1 exclusivamente em helpus_staging...");
   await client.query("REVOKE UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.financial_ledger, public.fx_rates FROM staging_operator;");
-  await client.query("GRANT SELECT, INSERT ON TABLE public.financial_ledger, public.fx_rates TO staging_operator;");
+  await client.query("GRANT SELECT, INSERT ON TABLE public.financial_ledger TO staging_operator;");
+  await client.query("REVOKE INSERT ON TABLE public.fx_rates FROM staging_operator;");
+  await client.query("GRANT SELECT ON TABLE public.fx_rates TO staging_operator;");
   // A separate isolated test schema retains DDL rights for disposable test objects.
   // Never grant blanket privileges to public or to production databases.
   await client.query("CREATE SCHEMA IF NOT EXISTS p1_test_isolated;");
   await client.query("GRANT USAGE, CREATE ON SCHEMA p1_test_isolated TO staging_operator;");
-  console.log("✓ Grants P1 restritos a SELECT/INSERT; schema de testes isolado.");
+  console.log("✓ Ledger SELECT/INSERT, FX SELECT-only e schema de testes isolado.");
 
   await client.end();
 
