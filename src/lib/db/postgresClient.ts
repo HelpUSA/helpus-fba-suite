@@ -925,6 +925,26 @@ export async function getFxRate(date: string, fromCurr: string, toCurr: string, 
   throw new Error('FX_RATE_UNAVAILABLE: No documented rate for requested currency pair and date.');
 }
 
+/**
+ * Official documentary FX source allowlist for REALIZADO foreign transactions (Order 049).
+ * Prohibits synthetic test rates, fallback policies, or undocumented sources from being
+ * recorded as authoritative REALIZADO accounting entries.
+ */
+export const VERIFIABLE_DOCUMENTARY_FX_SOURCES = [
+  'BCB_PTAX',
+  'BCB_PTAX_OFICIAL',
+  'BACEN_PTAX',
+  'OFFICIAL_SETTLEMENT',
+] as const;
+
+export function isVerifiableDocumentaryFxSource(source?: string | null): boolean {
+  if (!source || typeof source !== 'string') return false;
+  const s = source.trim();
+  return VERIFIABLE_DOCUMENTARY_FX_SOURCES.some(
+    (base) => s === base || s === `${base}_PRIOR_CLOSE`
+  );
+}
+
 export async function recordFinancialLedgerEntry(
   entry: FinancialLedgerEntry,
   client?: PoolClient
@@ -1007,20 +1027,29 @@ export async function recordFinancialLedgerEntry(
       return mapLedgerRowToEntry(existing);
     }
 
-    // 2. Compute and strictly verify FX rates for REALIZADO transactions
+    // 2. Compute and strictly verify FX rates for REALIZADO transactions (Order 049)
     let fxRate = entry.fxRate;
     let fxSource = entry.fxSource;
-    if (entry.currency === 'USD') {
-      const fxInfo = await getFxRate(entry.competenceDate, 'USD', 'BRL', c);
-      if (entry.status === 'REALIZADO' && entry.fxRate && entry.fxRate > 0) {
-        if (Math.abs(entry.fxRate - fxInfo.rate) > 0.0001) {
-          throw new Error(
-            `FX_ORIGIN_UNVERIFIED: Cotação informada (${entry.fxRate}) diverge da taxa oficial documentada (${fxInfo.rate}) para ${entry.competenceDate}. Lançamentos REALIZADO proíbem taxa arbitrária sem comprovação.`
-          );
+    if (entry.currency !== 'BRL') {
+      const fxInfo = await getFxRate(entry.competenceDate, entry.currency, 'BRL', c);
+      if (entry.status === 'REALIZADO') {
+        if (entry.fxRate && entry.fxRate > 0) {
+          if (Math.abs(entry.fxRate - fxInfo.rate) > 0.0001) {
+            throw new Error(
+              `FX_ORIGIN_UNVERIFIED: Cotação informada (${entry.fxRate}) diverge da taxa oficial documentada (${fxInfo.rate}) para ${entry.competenceDate}. Lançamentos REALIZADO proíbem taxa arbitrária sem comprovação.`
+            );
+          }
+          if (entry.fxSource && entry.fxSource !== fxInfo.source) {
+            throw new Error(
+              `FX_ORIGIN_UNVERIFIED: Fonte cambial informada (${entry.fxSource}) diverge da fonte documentada (${fxInfo.source}) para ${entry.competenceDate}.`
+            );
+          }
         }
-        if (entry.fxSource && entry.fxSource !== fxInfo.source) {
+
+        const effectiveSource = entry.fxSource || fxInfo.source;
+        if (!isVerifiableDocumentaryFxSource(effectiveSource)) {
           throw new Error(
-            `FX_ORIGIN_UNVERIFIED: Fonte cambial informada (${entry.fxSource}) diverge da fonte documentada (${fxInfo.source}) para ${entry.competenceDate}.`
+            `FX_ORIGIN_UNVERIFIED: Lançamento REALIZADO em ${entry.currency} proíbe cotações de fonte não-documental ('${effectiveSource}'). Fontes documentais permitidas: ${VERIFIABLE_DOCUMENTARY_FX_SOURCES.join(', ')} (e variantes _PRIOR_CLOSE).`
           );
         }
       }
@@ -1031,7 +1060,7 @@ export async function recordFinancialLedgerEntry(
       fxSource = 'PARITY_BRL';
     }
 
-    const amountBrl = entry.currency === 'USD'
+    const amountBrl = entry.currency !== 'BRL'
       ? parseFloat((entry.amountOriginal * fxRate).toFixed(2))
       : entry.amountOriginal;
 

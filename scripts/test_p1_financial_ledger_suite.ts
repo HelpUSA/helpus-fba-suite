@@ -28,13 +28,16 @@ if (fs.existsSync(envLocalPath)) {
 
 async function runTestSuite() {
   console.log('================================================================');
-  console.log('SUÍTE DE AUDITORIA & QA FINAL P1: ORDEM 048');
+  console.log('SUÍTE DE AUDITORIA & QA FINAL P1: ORDEM 049');
   console.log('================================================================');
 
-  const stagingUrl = process.env.STAGING_DATABASE_URL;
-  if (!stagingUrl) {
+  const rawStagingUrl = process.env.STAGING_DATABASE_URL;
+  if (!rawStagingUrl) {
     throw new Error('STAGING_DATABASE_URL ausente em .env.local');
   }
+
+  // Use unpooled direct endpoint for isolated test schema to ensure strict session-level search_path retention
+  const stagingUrl = rawStagingUrl.replace('-pooler', '');
 
   // Connect client to verify database target
   const checkClient = new Client({
@@ -102,22 +105,22 @@ async function runTestSuite() {
 
   try {
     // -------------------------------------------------------------
-    // BLOCO 1: TAXAS FX, IMUTABILIDADE & REJEIÇÃO DE FX ARBITRÁRIO EM REALIZADO
+    // BLOCO 1: TAXAS FX, IMUTABILIDADE & ALLOWLIST DE FX DOCUMENTAL EM REALIZADO (Ordem 049)
     // -------------------------------------------------------------
-    console.log('\n--- Bloco 1: Taxas FX, Imutabilidade e Rejeição de FX Arbitrário em REALIZADO (Item 4) ---');
+    console.log('\n--- Bloco 1: Taxas FX, Imutabilidade e Allowlist de FX Documental em REALIZADO (Ordem 049) ---');
 
-    // 1.1 Inserir taxa de teste documentada com SYNTHETIC_TEST_RATE
+    // 1.1 Inserir taxa de teste oficial documentada (BCB_PTAX_OFICIAL)
     const testFx: FxRateRecord = {
       rateDate: '2026-10-15',
       currencyFrom: 'USD',
       currencyTo: 'BRL',
       rate: 5.6842,
-      source: 'SYNTHETIC_TEST_RATE',
+      source: 'BCB_PTAX_OFICIAL',
       isFallback: false,
     };
     const savedFx = await recordFxRate(testFx, testClient);
     assert(savedFx.rate === 5.6842, 'Taxa de teste salva com precisão decimal');
-    assert(savedFx.source === 'SYNTHETIC_TEST_RATE', 'Fonte SYNTHETIC_TEST_RATE registrada corretamente');
+    assert(savedFx.source === 'BCB_PTAX_OFICIAL', 'Fonte BCB_PTAX_OFICIAL registrada corretamente');
 
     // 1.2 Recuperação idempotente da mesma taxa
     const idempFx = await recordFxRate(testFx, testClient);
@@ -148,7 +151,7 @@ async function runTestSuite() {
     // 1.5 Recuperar fim de semana (prior close fallback documentado)
     const fallbackFx = await getFxRate('2026-10-18', 'USD', 'BRL', testClient);
     assert(fallbackFx.rate === 5.6842, 'Data sem cotação utiliza fechamento anterior documentado (prior close)');
-    assert(fallbackFx.source === 'SYNTHETIC_TEST_RATE_PRIOR_CLOSE', 'Fonte documenta _PRIOR_CLOSE no fallback');
+    assert(fallbackFx.source === 'BCB_PTAX_OFICIAL_PRIOR_CLOSE', 'Fonte documenta _PRIOR_CLOSE no fallback');
     assert(fallbackFx.isFallback === true, 'Indicador isFallback ativado para prior close');
 
     // 1.6 Paridade de moedas idênticas
@@ -166,7 +169,7 @@ async function runTestSuite() {
     }
     assert(fxUnavailableCaught, 'Cotação ausente dispara FX_RATE_UNAVAILABLE (proibido inventar cotação)');
 
-    // 1.8 Rejeitar taxa FX arbitrária injetada em lançamento REALIZADO sem documento (Item 4)
+    // 1.8 Rejeitar taxa FX arbitrária injetada em lançamento REALIZADO sem documento
     let arbitraryFxBlocked = false;
     try {
       await recordFinancialLedgerEntry({
@@ -194,7 +197,151 @@ async function runTestSuite() {
     }
     assert(arbitraryFxBlocked, 'Lançamento REALIZADO com FX arbitrário sem origem documental é rejeitado com FX_ORIGIN_UNVERIFIED');
 
-    // 1.9 Rejeitar data calendário impossível em lançamento contábil (Ex: 2026-02-30)
+    // 1.9 Inserir taxa sintética (SYNTHETIC_TEST_RATE) e taxa de fallback para testes de governança cambial (Ordem 049)
+    await recordFxRate({
+      rateDate: '2026-09-10',
+      currencyFrom: 'USD',
+      currencyTo: 'BRL',
+      rate: 5.5000,
+      source: 'SYNTHETIC_TEST_RATE',
+      isFallback: false,
+    }, testClient);
+
+    await recordFxRate({
+      rateDate: '2026-09-09',
+      currencyFrom: 'USD',
+      currencyTo: 'BRL',
+      rate: 5.4800,
+      source: 'FALLBACK_POLICY',
+      isFallback: true,
+    }, testClient);
+
+    // 1.10 Rejeitar lançamento REALIZADO em USD com SYNTHETIC_TEST_RATE mesmo com taxa idêntica ao banco
+    let syntheticRealizadoBlocked = false;
+    try {
+      await recordFinancialLedgerEntry({
+        entryNumber: `TEST-P1-SYNTH-REAL-${Date.now()}`,
+        idempotencyKey: `idemp-synth-real-${Date.now()}`,
+        sourceEventType: 'ORDER_SALE',
+        sourceId: 'ORD-SYNTH-001',
+        marketplace: 'Amazon US',
+        competenceDate: '2026-09-10',
+        currency: 'USD',
+        amountOriginal: 100.00,
+        entryDirection: 'CREDIT',
+        amountBrl: 550.00,
+        fxRate: 5.5000,
+        fxSource: 'SYNTHETIC_TEST_RATE',
+        category: 'RECEITA_BRUTA',
+        status: 'REALIZADO',
+        metadata: { sku: 'SKU-SYNTH', quantity: 1 },
+        environment: 'staging',
+      }, testClient);
+    } catch (e: any) {
+      if (e.message.includes('FX_ORIGIN_UNVERIFIED')) {
+        syntheticRealizadoBlocked = true;
+      }
+    }
+    assert(syntheticRealizadoBlocked, 'Lançamento REALIZADO em USD com SYNTHETIC_TEST_RATE é estritamente proibido (FX_ORIGIN_UNVERIFIED)');
+
+    // 1.11 Rejeitar lançamento REALIZADO em USD com resolução automática de fonte sintética
+    let autoResolvedSynthBlocked = false;
+    try {
+      await recordFinancialLedgerEntry({
+        entryNumber: `TEST-P1-AUTOSYNTH-REAL-${Date.now()}`,
+        idempotencyKey: `idemp-autosynth-real-${Date.now()}`,
+        sourceEventType: 'ORDER_SALE',
+        sourceId: 'ORD-AUTOSYNTH-002',
+        marketplace: 'Amazon US',
+        competenceDate: '2026-09-10',
+        currency: 'USD',
+        amountOriginal: 100.00,
+        entryDirection: 'CREDIT',
+        amountBrl: 0,
+        fxRate: 0,
+        fxSource: '', // Resolução automática encontra SYNTHETIC_TEST_RATE no banco
+        category: 'RECEITA_BRUTA',
+        status: 'REALIZADO',
+        metadata: { sku: 'SKU-AUTOSYNTH', quantity: 1 },
+        environment: 'staging',
+      }, testClient);
+    } catch (e: any) {
+      if (e.message.includes('FX_ORIGIN_UNVERIFIED')) {
+        autoResolvedSynthBlocked = true;
+      }
+    }
+    assert(autoResolvedSynthBlocked, 'Resolução automática de taxa cambial sintética para REALIZADO é rejeitada com FX_ORIGIN_UNVERIFIED');
+
+    // 1.12 Rejeitar lançamento REALIZADO em USD com FALLBACK_POLICY
+    let fallbackPolicyBlocked = false;
+    try {
+      await recordFinancialLedgerEntry({
+        entryNumber: `TEST-P1-FB-REAL-${Date.now()}`,
+        idempotencyKey: `idemp-fb-real-${Date.now()}`,
+        sourceEventType: 'ORDER_SALE',
+        sourceId: 'ORD-FB-003',
+        marketplace: 'Amazon US',
+        competenceDate: '2026-09-09',
+        currency: 'USD',
+        amountOriginal: 100.00,
+        entryDirection: 'CREDIT',
+        amountBrl: 548.00,
+        fxRate: 5.4800,
+        fxSource: 'FALLBACK_POLICY',
+        category: 'RECEITA_BRUTA',
+        status: 'REALIZADO',
+        metadata: { sku: 'SKU-FB', quantity: 1 },
+        environment: 'staging',
+      }, testClient);
+    } catch (e: any) {
+      if (e.message.includes('FX_ORIGIN_UNVERIFIED')) {
+        fallbackPolicyBlocked = true;
+      }
+    }
+    assert(fallbackPolicyBlocked, 'Lançamento REALIZADO em USD com FALLBACK_POLICY é proibido com FX_ORIGIN_UNVERIFIED');
+
+    // 1.13 Permitir SYNTHETIC_TEST_RATE em lançamentos ESTIMADO e PROJETADO
+    const estimSynthEntry = await recordFinancialLedgerEntry({
+      entryNumber: `TEST-P1-SYNTH-EST-${Date.now()}`,
+      idempotencyKey: `idemp-synth-est-${Date.now()}`,
+      sourceEventType: 'ORDER_SALE',
+      sourceId: 'ORD-EST-SYNTH-004',
+      marketplace: 'Amazon US',
+      competenceDate: '2026-09-10',
+      currency: 'USD',
+      amountOriginal: 100.00,
+      entryDirection: 'CREDIT',
+      amountBrl: 550.00,
+      fxRate: 5.5000,
+      fxSource: 'SYNTHETIC_TEST_RATE',
+      category: 'RECEITA_BRUTA',
+      status: 'ESTIMADO',
+      metadata: { sku: 'SKU-EST-SYNTH', quantity: 1 },
+      environment: 'staging',
+    }, testClient);
+    assert(estimSynthEntry.status === 'ESTIMADO', 'Lançamento ESTIMADO com taxa sintética é aceito com sucesso');
+
+    const projSynthEntry = await recordFinancialLedgerEntry({
+      entryNumber: `TEST-P1-SYNTH-PROJ-${Date.now()}`,
+      idempotencyKey: `idemp-synth-proj-${Date.now()}`,
+      sourceEventType: 'ORDER_SALE',
+      sourceId: 'ORD-PROJ-SYNTH-005',
+      marketplace: 'Amazon US',
+      competenceDate: '2026-09-10',
+      currency: 'USD',
+      amountOriginal: 100.00,
+      entryDirection: 'CREDIT',
+      amountBrl: 550.00,
+      fxRate: 5.5000,
+      fxSource: 'SYNTHETIC_TEST_RATE',
+      category: 'RECEITA_BRUTA',
+      status: 'PROJETADO',
+      metadata: { sku: 'SKU-PROJ-SYNTH', quantity: 1 },
+      environment: 'staging',
+    }, testClient);
+    assert(projSynthEntry.status === 'PROJETADO', 'Lançamento PROJETADO com taxa sintética é aceito com sucesso');
+
+    // 1.14 Rejeitar data calendário impossível em lançamento contábil (Ex: 2026-02-30)
     let impossibleDateBlocked = false;
     try {
       await recordFinancialLedgerEntry({
@@ -209,7 +356,7 @@ async function runTestSuite() {
         entryDirection: 'CREDIT',
         amountBrl: 568.42,
         fxRate: 5.6842,
-        fxSource: 'SYNTHETIC_TEST_RATE',
+        fxSource: 'BCB_PTAX_OFICIAL',
         category: 'RECEITA_BRUTA',
         status: 'REALIZADO',
         metadata: { sku: 'SKU-IMP', quantity: 1 },
@@ -240,7 +387,7 @@ async function runTestSuite() {
       entryDirection: 'CREDIT',
       amountBrl: 568.42,
       fxRate: 5.6842,
-      fxSource: 'SYNTHETIC_TEST_RATE',
+      fxSource: 'BCB_PTAX_OFICIAL',
       category: 'RECEITA_BRUTA',
       status: 'REALIZADO',
       metadata: { sku: 'TEST-SKU-1', quantity: 1, unitPrice: 100.00 },
