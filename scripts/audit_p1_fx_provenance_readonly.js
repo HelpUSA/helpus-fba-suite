@@ -49,9 +49,48 @@ async function main() {
     let totalUsdRealized = null, verifiedUsdRealized = null;
     if (missing.length === 0) {
       const counts = (await client.query(`SELECT count(*)::int AS total,
-        count(*) FILTER (WHERE f.evidence_ref IS NOT NULL AND
-          f.evidence_sha256 ~ '^[a-fA-F0-9]{64}$' AND f.verified_at IS NOT NULL AND
-          f.verified_by IS NOT NULL AND f.import_batch_id IS NOT NULL)::int AS documented
+        count(*) FILTER (WHERE NULLIF(BTRIM(f.evidence_ref), '') IS NOT NULL AND
+          f.evidence_sha256 ~ '^[a-fA-F0-9]{64}
+        FROM financial_ledger l
+        LEFT JOIN fx_rates f ON f.id = l.fx_rate_id
+        WHERE l.status = 'REALIZADO' AND l.currency = 'USD'`)).rows[0];
+      totalUsdRealized = counts.total;
+      verifiedUsdRealized = counts.documented;
+    }
+    const result = {
+      database: info.db, // Do not disclose username/connection string
+      schemaEvidenceColumnsPresent: missing.length === 0,
+      missingColumns: missing,
+      fxOperationalReadOnly: !!(grants.fx_select && !grants.fx_insert && !grants.fx_update && !grants.fx_delete),
+      ledgerOperationalAppendOnly: !!(grants.ledger_select && grants.ledger_insert && !grants.ledger_update && !grants.ledger_delete),
+      triggersEnabled: protectedTriggers,
+      documentaryImporterValidated: false, // This read-only check cannot authenticate external documents.
+      releaseGate: 'BLOCKED_UNTIL_DOCUMENTARY_IMPORTER_AND_REVIEW',
+      totalUsdRealized,
+      documentedUsdRealized: verifiedUsdRealized,
+      gate: missing.length === 0 && leastPrivilege && protectedTriggers && totalUsdRealized === verifiedUsdRealized ? 'PASS_DB_METADATA_ONLY' : 'BLOCKED',
+    };
+    console.log(JSON.stringify(result, null, 2));
+    if (result.gate === 'BLOCKED') process.exitCode = 2;
+    await client.query('ROLLBACK');
+  } finally {
+    await client.end().catch(() => {});
+  }
+}
+
+main().catch(err => {
+  console.error('P1_FX_PROVENANCE_GATE_FAILED:', err.message);
+  process.exitCode = 2;
+});
+ AND
+          f.verified_at IS NOT NULL AND f.verified_at <= NOW() AND
+          NULLIF(BTRIM(f.verified_by), '') IS NOT NULL AND
+          NULLIF(BTRIM(f.import_batch_id), '') IS NOT NULL AND
+          f.evidence_kind IN ('BCB_OFFICIAL_DATASET', 'SETTLEMENT_DOCUMENT') AND
+          f.currency_from = l.currency AND f.currency_to = 'BRL' AND
+          f.rate = l.fx_rate AND
+          (l.fx_source = f.source OR l.fx_source = f.source || '_PRIOR_CLOSE')
+        )::int AS documented
         FROM financial_ledger l
         LEFT JOIN fx_rates f ON f.id = l.fx_rate_id
         WHERE l.status = 'REALIZADO' AND l.currency = 'USD'`)).rows[0];
