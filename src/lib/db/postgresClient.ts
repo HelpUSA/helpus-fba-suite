@@ -904,10 +904,14 @@ export async function getFxRate(date: string, fromCurr: string, toCurr: string, 
     };
   }
 
-  // 2. Nearest previous date within historical records
+  // 2. Prior close is only valid within a bounded seven-calendar-day window.
+  // Do not reuse arbitrarily old observations for current REALIZADO entries.
+  // Source eligibility and documentary verification are checked by the ledger.
   const nearestRes = await pool.query(
     `SELECT rate, source FROM fx_rates
-     WHERE rate_date <= $1 AND currency_from = $2 AND currency_to = $3
+     WHERE rate_date < $1::date
+       AND rate_date >= ($1::date - INTERVAL '7 days')
+       AND currency_from = $2 AND currency_to = $3
      ORDER BY rate_date DESC LIMIT 1;`,
     [date, fromCurr, toCurr]
   );
