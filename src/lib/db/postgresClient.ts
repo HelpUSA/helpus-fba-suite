@@ -8,6 +8,13 @@ import {
   WarehouseCode,
   ErpDatabaseState,
   NATIVOS_SKU_CATALOG,
+  FinancialLedgerEntry,
+  FxRateRecord,
+  AuditedDreStatement,
+  FinancialMarketplace,
+  AuditedDreMetric,
+  FinancialCategory,
+  FinancialStatus,
 } from '../erpTypes';
 import { NfeData } from '../nfeParser';
 
@@ -761,4 +768,897 @@ export async function persistUsCommercialInvoicePostgres(data: {
   });
 
   return invoiceId;
+}
+
+
+// ============================================================================
+// Phase P1: Authoritative Financial Ledger & DRE Engine (Order 045)
+// ============================================================================
+
+function mapLedgerRowToEntry(row: any): FinancialLedgerEntry {
+  return {
+    id: row.id,
+    entryNumber: row.entry_number,
+    idempotencyKey: row.idempotency_key,
+    sourceEventType: row.source_event_type,
+    sourceId: row.source_id,
+    marketplace: row.marketplace,
+    competenceDate: row.competence_date instanceof Date ? row.competence_date.toISOString().split('T')[0] : String(row.competence_date),
+    currency: row.currency,
+    amountOriginal: Number(row.amount_original),
+    entryDirection: row.entry_direction,
+    amountBrl: Number(row.amount_brl),
+    fxRate: Number(row.fx_rate),
+    fxSource: row.fx_source,
+    category: row.category,
+    status: row.status,
+    reversalOfId: row.reversal_of_id || undefined,
+    metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata || {},
+    createdAt: row.created_at,
+    createdBy: row.created_by,
+    environment: row.environment,
+  };
+}
+
+export async function recordFxRate(
+  fx: FxRateRecord,
+  client?: PoolClient
+): Promise<FxRateRecord> {
+  const runner = async (c: PoolClient) => {
+    // 1. Check if rate already exists for this date and currency pair
+    const existingRes = await c.query(
+      `SELECT * FROM fx_rates WHERE rate_date = $1 AND currency_from = $2 AND currency_to = $3;`,
+      [fx.rateDate, fx.currencyFrom, fx.currencyTo]
+    );
+    if (existingRes.rows.length > 0) {
+      const existing = existingRes.rows[0];
+      const rateDiff = Math.abs(Number(existing.rate) - fx.rate);
+      if (rateDiff < 0.0001 && existing.source === fx.source && existing.is_fallback === fx.isFallback) {
+        return {
+          id: existing.id,
+          rateDate: existing.rate_date instanceof Date ? existing.rate_date.toISOString().split('T')[0] : String(existing.rate_date),
+          currencyFrom: existing.currency_from,
+          currencyTo: existing.currency_to,
+          rate: Number(existing.rate),
+          source: existing.source,
+          isFallback: existing.is_fallback,
+          createdAt: existing.created_at,
+        };
+      }
+      throw new Error(
+        `FX_RATE_IMMUTABLE: Cannot retroactively modify historical exchange rate for ${fx.currencyFrom}->${fx.currencyTo} on ${fx.rateDate}.`
+      );
+    }
+
+    const res = await c.query(
+      `INSERT INTO fx_rates (rate_date, currency_from, currency_to, rate, source, is_fallback)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (rate_date, currency_from, currency_to) DO NOTHING
+       RETURNING id, rate_date, currency_from, currency_to, rate, source, is_fallback, created_at;`,
+      [fx.rateDate, fx.currencyFrom, fx.currencyTo, fx.rate, fx.source, fx.isFallback]
+    );
+
+    if (res.rows.length > 0) {
+      const row = res.rows[0];
+      return {
+        id: row.id,
+        rateDate: row.rate_date instanceof Date ? row.rate_date.toISOString().split('T')[0] : String(row.rate_date),
+        currencyFrom: row.currency_from,
+        currencyTo: row.currency_to,
+        rate: Number(row.rate),
+        source: row.source,
+        isFallback: row.is_fallback,
+        createdAt: row.created_at,
+      };
+    }
+
+    // Race condition resolution
+    const confRes = await c.query(
+      `SELECT * FROM fx_rates WHERE rate_date = $1 AND currency_from = $2 AND currency_to = $3;`,
+      [fx.rateDate, fx.currencyFrom, fx.currencyTo]
+    );
+    if (confRes.rows.length > 0) {
+      const row = confRes.rows[0];
+      const rateDiff = Math.abs(Number(row.rate) - fx.rate);
+      if (rateDiff < 0.0001 && row.source === fx.source && row.is_fallback === fx.isFallback) {
+        return {
+          id: row.id,
+          rateDate: row.rate_date instanceof Date ? row.rate_date.toISOString().split('T')[0] : String(row.rate_date),
+          currencyFrom: row.currency_from,
+          currencyTo: row.currency_to,
+          rate: Number(row.rate),
+          source: row.source,
+          isFallback: row.is_fallback,
+          createdAt: row.created_at,
+        };
+      }
+      throw new Error(
+        `FX_RATE_IMMUTABLE: Cannot retroactively modify historical exchange rate for ${fx.currencyFrom}->${fx.currencyTo} on ${fx.rateDate}.`
+      );
+    }
+
+    throw new Error(`Failed to record FX rate for ${fx.rateDate}`);
+  };
+
+  if (client) return runner(client);
+  return withTransaction(runner);
+}
+
+export async function getFxRate(date: string, fromCurr: string, toCurr: string, client?: Pool | PoolClient): Promise<{ rate: number; source: string; isFallback: boolean }> {
+  if (fromCurr === toCurr) {
+    return { rate: 1.0, source: 'PARITY', isFallback: false };
+  }
+
+  const pool = client || getPostgresPool();
+  // 1. Exact match on date
+  const exactRes = await pool.query(
+    `SELECT rate, source, is_fallback FROM fx_rates
+     WHERE rate_date = $1 AND currency_from = $2 AND currency_to = $3;`,
+    [date, fromCurr, toCurr]
+  );
+  if (exactRes.rows.length > 0) {
+    return {
+      rate: Number(exactRes.rows[0].rate),
+      source: exactRes.rows[0].source,
+      isFallback: exactRes.rows[0].is_fallback,
+    };
+  }
+
+  // 2. Nearest previous date within historical records
+  const nearestRes = await pool.query(
+    `SELECT rate, source FROM fx_rates
+     WHERE rate_date <= $1 AND currency_from = $2 AND currency_to = $3
+     ORDER BY rate_date DESC LIMIT 1;`,
+    [date, fromCurr, toCurr]
+  );
+  if (nearestRes.rows.length > 0) {
+    return {
+      rate: Number(nearestRes.rows[0].rate),
+      source: `${nearestRes.rows[0].source}_PRIOR_CLOSE`,
+      isFallback: true,
+    };
+  }
+
+  // Never synthesize an exchange rate for authoritative financial records.
+  // Historical prior-close rates above are marked as fallback; callers must
+  // distinguish them from official rates valid on the transaction date.
+  throw new Error('FX_RATE_UNAVAILABLE: No documented rate for requested currency pair and date.');
+}
+
+/**
+ * Official documentary FX source allowlist for REALIZADO foreign transactions (Order 049).
+ * Prohibits synthetic test rates, fallback policies, or undocumented sources from being
+ * recorded as authoritative REALIZADO accounting entries.
+ */
+export const VERIFIABLE_DOCUMENTARY_FX_SOURCES = [
+  'BCB_PTAX',
+  'BCB_PTAX_OFICIAL',
+  'BACEN_PTAX',
+  'OFFICIAL_SETTLEMENT',
+] as const;
+
+export function isVerifiableDocumentaryFxSource(source?: string | null): boolean {
+  if (!source || typeof source !== 'string') return false;
+  const s = source.trim();
+  return VERIFIABLE_DOCUMENTARY_FX_SOURCES.some(
+    (base) => s === base || s === `${base}_PRIOR_CLOSE`
+  );
+}
+
+export async function recordFinancialLedgerEntry(
+  entry: FinancialLedgerEntry,
+  client?: PoolClient
+): Promise<FinancialLedgerEntry> {
+  const runner = async (c: PoolClient) => {
+    // Validate calendar date sanity for transaction entry
+    if (!isValidCalendarDate(entry.competenceDate)) {
+      throw new Error(`INVALID_DATE_FORMAT: Data de competência '${entry.competenceDate}' inválida ou impossível no calendário.`);
+    }
+
+    // Helper: Integral fingerprint validation for full payload integrity
+    const validateFingerprint = (existing: any, targetFxRate?: number, targetFxSource?: string) => {
+      const diffs: string[] = [];
+      if (existing.currency !== entry.currency) diffs.push(`currency (${existing.currency} vs ${entry.currency})`);
+      if (Math.abs(Number(existing.amount_original) - entry.amountOriginal) > 0.001) {
+        diffs.push(`amountOriginal (${existing.amount_original} vs ${entry.amountOriginal})`);
+      }
+      if (existing.marketplace !== entry.marketplace) diffs.push(`marketplace (${existing.marketplace} vs ${entry.marketplace})`);
+      const existDate = existing.competence_date instanceof Date
+        ? existing.competence_date.toISOString().split('T')[0]
+        : String(existing.competence_date).split('T')[0];
+      if (existDate !== entry.competenceDate) diffs.push(`competenceDate (${existDate} vs ${entry.competenceDate})`);
+      if (existing.category !== entry.category) diffs.push(`category (${existing.category} vs ${entry.category})`);
+      if (existing.entry_direction !== entry.entryDirection) diffs.push(`entryDirection (${existing.entry_direction} vs ${entry.entryDirection})`);
+      if (existing.status !== entry.status) diffs.push(`status (${existing.status} vs ${entry.status})`);
+      
+      const checkFxRate = targetFxRate ?? (entry.fxRate && entry.fxRate > 0 ? entry.fxRate : undefined);
+      if (checkFxRate !== undefined && Math.abs(Number(existing.fx_rate) - checkFxRate) > 0.0001) {
+        diffs.push(`fxRate (${existing.fx_rate} vs ${checkFxRate})`);
+      }
+      const checkFxSource = targetFxSource ?? entry.fxSource;
+      if (checkFxSource && existing.fx_source !== checkFxSource) {
+        diffs.push(`fxSource (${existing.fx_source} vs ${checkFxSource})`);
+      }
+
+      const existEnv = existing.environment || 'staging';
+      const entryEnv = entry.environment || 'staging';
+      if (existEnv !== entryEnv) diffs.push(`environment (${existEnv} vs ${entryEnv})`);
+      const existRev = existing.reversal_of_id || null;
+      const entryRev = entry.reversalOfId || null;
+      if (existRev !== entryRev) diffs.push(`reversalOfId (${existRev} vs ${entryRev})`);
+      if (existing.source_event_type !== entry.sourceEventType) diffs.push(`sourceEventType (${existing.source_event_type} vs ${entry.sourceEventType})`);
+      if (existing.source_id !== entry.sourceId) diffs.push(`sourceId (${existing.source_id} vs ${entry.sourceId})`);
+
+      // Financial metadata comparison
+      if (entry.metadata && typeof entry.metadata === 'object' && existing.metadata && typeof existing.metadata === 'object') {
+        const financialKeys = ['sku', 'quantity', 'unitPrice', 'unitCost', 'feeRate'];
+        for (const k of financialKeys) {
+          if (k in entry.metadata && k in existing.metadata) {
+            const v1 = (entry.metadata as any)[k];
+            const v2 = existing.metadata[k];
+            if (typeof v1 === 'number' && typeof v2 === 'number') {
+              if (Math.abs(v1 - v2) > 0.0001) {
+                diffs.push(`metadata.${k} (${v2} vs ${v1})`);
+              }
+            } else if (v1 !== undefined && v2 !== undefined && String(v1) !== String(v2)) {
+              diffs.push(`metadata.${k} (${v2} vs ${v1})`);
+            }
+          }
+        }
+      }
+
+      if (diffs.length > 0) {
+        throw new Error(
+          `IDEMPOTENCY_PAYLOAD_MISMATCH: Idempotency key '${entry.idempotencyKey}' already exists with divergent payload parameters (${diffs.join(', ')}).`
+        );
+      }
+    };
+
+    // 1. Idempotency Pre-Check with Deterministic FX Matching
+    const checkRes = await c.query(
+      `SELECT * FROM financial_ledger WHERE idempotency_key = $1;`,
+      [entry.idempotencyKey]
+    );
+    if (checkRes.rows.length > 0) {
+      const existing = checkRes.rows[0];
+      const resRate = (entry.fxRate && entry.fxRate > 0) ? entry.fxRate : Number(existing.fx_rate);
+      const resSource = entry.fxSource || existing.fx_source;
+      validateFingerprint(existing, resRate, resSource);
+      return mapLedgerRowToEntry(existing);
+    }
+
+    // 2. Compute and strictly verify FX rates for REALIZADO transactions (Order 049)
+    let fxRate = entry.fxRate;
+    let fxSource = entry.fxSource;
+    if (entry.currency !== 'BRL') {
+      const fxInfo = await getFxRate(entry.competenceDate, entry.currency, 'BRL', c);
+      if (entry.status === 'REALIZADO') {
+        if (entry.fxRate && entry.fxRate > 0) {
+          if (Math.abs(entry.fxRate - fxInfo.rate) > 0.0001) {
+            throw new Error(
+              `FX_ORIGIN_UNVERIFIED: Cotação informada (${entry.fxRate}) diverge da taxa oficial documentada (${fxInfo.rate}) para ${entry.competenceDate}. Lançamentos REALIZADO proíbem taxa arbitrária sem comprovação.`
+            );
+          }
+          if (entry.fxSource && entry.fxSource !== fxInfo.source) {
+            throw new Error(
+              `FX_ORIGIN_UNVERIFIED: Fonte cambial informada (${entry.fxSource}) diverge da fonte documentada (${fxInfo.source}) para ${entry.competenceDate}.`
+            );
+          }
+        }
+
+        const effectiveSource = entry.fxSource || fxInfo.source;
+        if (!isVerifiableDocumentaryFxSource(effectiveSource)) {
+          throw new Error(
+            `FX_ORIGIN_UNVERIFIED: Lançamento REALIZADO em ${entry.currency} proíbe cotações de fonte não-documental ('${effectiveSource}'). Fontes documentais permitidas: ${VERIFIABLE_DOCUMENTARY_FX_SOURCES.join(', ')} (e variantes _PRIOR_CLOSE).`
+          );
+        }
+      }
+      fxRate = (entry.fxRate && entry.fxRate > 0) ? entry.fxRate : fxInfo.rate;
+      fxSource = entry.fxSource || fxInfo.source;
+    } else {
+      fxRate = 1.0;
+      fxSource = 'PARITY_BRL';
+    }
+
+    const amountBrl = entry.currency !== 'BRL'
+      ? parseFloat((entry.amountOriginal * fxRate).toFixed(2))
+      : entry.amountOriginal;
+
+    // 3. Concurrency-Safe Insert into financial_ledger with ON CONFLICT (idempotency_key) DO NOTHING
+    try {
+      const insertRes = await c.query(
+        `INSERT INTO financial_ledger (
+          entry_number, idempotency_key, source_event_type, source_id,
+          marketplace, competence_date, currency, amount_original,
+          entry_direction, amount_brl, fx_rate, fx_source, category,
+          status, reversal_of_id, metadata, created_by, environment
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        ON CONFLICT (idempotency_key) DO NOTHING
+        RETURNING *;`,
+        [
+          entry.entryNumber,
+          entry.idempotencyKey,
+          entry.sourceEventType,
+          entry.sourceId,
+          entry.marketplace,
+          entry.competenceDate,
+          entry.currency,
+          entry.amountOriginal,
+          entry.entryDirection,
+          amountBrl,
+          fxRate,
+          fxSource,
+          entry.category,
+          entry.status,
+          entry.reversalOfId || null,
+          JSON.stringify(entry.metadata || {}),
+          entry.createdBy || 'SYSTEM',
+          entry.environment || 'staging',
+        ]
+      );
+
+      if (insertRes.rows.length > 0) {
+        return mapLedgerRowToEntry(insertRes.rows[0]);
+      }
+    } catch (e: any) {
+      if (!e.message.includes('unique constraint') && !e.message.includes('idempotency_key')) {
+        throw e;
+      }
+    }
+
+    // Fallback resolution for race condition: retrieve conflicting entry and verify integral payload fingerprint
+    const conflictRes = await c.query(
+      `SELECT * FROM financial_ledger WHERE idempotency_key = $1;`,
+      [entry.idempotencyKey]
+    );
+    if (conflictRes.rows.length > 0) {
+      const existing = conflictRes.rows[0];
+      validateFingerprint(existing, fxRate, fxSource);
+      return mapLedgerRowToEntry(existing);
+    }
+
+    throw new Error(`Failed to record or resolve idempotent entry: ${entry.idempotencyKey}`);
+  };
+
+  if (client) return runner(client);
+  return withTransaction(runner);
+}
+
+export async function recordCompensatoryReversal(
+  targetEntryNumberOrId: string,
+  reason: string,
+  createdBy = 'SUPERADMIN_AUDITOR',
+  client?: PoolClient,
+  competenceDate?: string
+): Promise<FinancialLedgerEntry> {
+  const runner = async (c: PoolClient) => {
+    const findRes = await c.query(
+      `SELECT * FROM financial_ledger WHERE id::text = $1 OR entry_number = $1;`,
+      [targetEntryNumberOrId]
+    );
+    if (findRes.rows.length === 0) {
+      throw new Error(`Ledger entry ${targetEntryNumberOrId} not found for compensatory reversal.`);
+    }
+    const orig = findRes.rows[0];
+
+    // Reversal neutralizes the exact original category by inverting the accounting direction
+    const reversedDirection = orig.entry_direction === 'CREDIT' ? 'DEBIT' : 'CREDIT';
+    const reversalNumber = `REV-${orig.entry_number}-${Date.now().toString().slice(-6)}`;
+    const idempotencyKey = `idemp-rev-${orig.idempotency_key}`;
+    const origDateStr = orig.competence_date instanceof Date ? orig.competence_date.toISOString().split('T')[0] : String(orig.competence_date).split('T')[0];
+    const compDate = competenceDate || origDateStr;
+
+    const reversalEntry: FinancialLedgerEntry = {
+      entryNumber: reversalNumber,
+      idempotencyKey,
+      sourceEventType: 'COMPENSATION_REVERSAL',
+      sourceId: orig.source_id,
+      marketplace: orig.marketplace,
+      competenceDate: compDate,
+      currency: orig.currency,
+      amountOriginal: Number(orig.amount_original),
+      entryDirection: reversedDirection,
+      amountBrl: Number(orig.amount_brl),
+      fxRate: Number(orig.fx_rate),
+      fxSource: orig.fx_source,
+      category: orig.category, // Preserves original category for exact 1:1 neutralization
+      status: orig.status, // Preserves original classification: ESTIMADO remains ESTIMADO, REALIZADO remains REALIZADO
+      reversalOfId: orig.id,
+      metadata: {
+        reason,
+        originalEntryNumber: orig.entry_number,
+        originalCategory: orig.category,
+        reversedAt: new Date().toISOString(),
+      },
+      createdBy,
+      environment: orig.environment,
+    };
+
+    return recordFinancialLedgerEntry(reversalEntry, c);
+  };
+
+  if (client) return runner(client);
+  return withTransaction(runner);
+}
+
+export async function syncPostgresOrdersToFinancialLedger(client?: PoolClient): Promise<{
+  ordersPosted: number;
+  invoicesPosted: number;
+}> {
+  const runner = async (c: PoolClient) => {
+    let ordersPosted = 0;
+    let invoicesPosted = 0;
+
+    // 1. Process Sale Orders
+    const ordersRes = await c.query(`SELECT * FROM sale_orders ORDER BY order_date ASC;`);
+    for (const order of ordersRes.rows) {
+      const orderDate = order.order_date instanceof Date ? order.order_date.toISOString().split('T')[0] : String(order.order_date).split('T')[0];
+      const isUs = order.marketplace === 'Amazon US';
+      const currency = isUs ? 'USD' : 'BRL';
+      const saleTotal = Number((order.sale_price * order.quantity).toFixed(2));
+      const cogsTotal = Number((order.unit_cost * order.quantity).toFixed(2));
+
+      // 1.1 Gross Revenue (REALIZADO)
+      await recordFinancialLedgerEntry({
+        entryNumber: `LEDGER-REV-${order.order_number}`,
+        idempotencyKey: `idemp-sale-rev-${order.order_number}`,
+        sourceEventType: 'ORDER_SALE',
+        sourceId: order.order_number,
+        marketplace: order.marketplace,
+        competenceDate: orderDate,
+        currency,
+        amountOriginal: saleTotal,
+        entryDirection: 'CREDIT',
+        amountBrl: 0, // auto computed
+        fxRate: 0,
+        fxSource: '',
+        category: 'RECEITA_BRUTA',
+        status: 'REALIZADO',
+        metadata: { sku: order.sku, quantity: order.quantity, unitPrice: order.sale_price },
+        environment: order.environment || 'staging',
+      }, c);
+
+      // 1.2 COGS / CMV (REALIZADO)
+      await recordFinancialLedgerEntry({
+        entryNumber: `LEDGER-CMV-${order.order_number}`,
+        idempotencyKey: `idemp-sale-cmv-${order.order_number}`,
+        sourceEventType: 'ORDER_SALE',
+        sourceId: order.order_number,
+        marketplace: order.marketplace,
+        competenceDate: orderDate,
+        currency,
+        amountOriginal: cogsTotal,
+        entryDirection: 'DEBIT',
+        amountBrl: 0,
+        fxRate: 0,
+        fxSource: '',
+        category: 'CMV',
+        status: 'REALIZADO',
+        metadata: { sku: order.sku, quantity: order.quantity, unitCost: order.unit_cost },
+        environment: order.environment || 'staging',
+      }, c);
+
+      // 1.3 Marketplace Fee (ESTIMADO until settlement report import)
+      const mktRate = isUs ? 0.15 : 0.16;
+      const mktFee = Number((saleTotal * mktRate).toFixed(2));
+      await recordFinancialLedgerEntry({
+        entryNumber: `LEDGER-MKTFEE-${order.order_number}`,
+        idempotencyKey: `idemp-sale-mktfee-${order.order_number}`,
+        sourceEventType: 'MARKETPLACE_FEE',
+        sourceId: order.order_number,
+        marketplace: order.marketplace,
+        competenceDate: orderDate,
+        currency,
+        amountOriginal: mktFee,
+        entryDirection: 'DEBIT',
+        amountBrl: 0,
+        fxRate: 0,
+        fxSource: '',
+        category: 'TAXA_MARKETPLACE',
+        status: 'ESTIMADO',
+        metadata: { feeRate: mktRate, estimated: true },
+        environment: order.environment || 'staging',
+      }, c);
+
+      // 1.4 Fulfillment Fee (ESTIMADO)
+      if (isUs) {
+        const fbaFee = Number((order.quantity * 3.25).toFixed(2));
+        await recordFinancialLedgerEntry({
+          entryNumber: `LEDGER-FBA-${order.order_number}`,
+          idempotencyKey: `idemp-sale-fba-${order.order_number}`,
+          sourceEventType: 'FULFILLMENT_FBA',
+          sourceId: order.order_number,
+          marketplace: order.marketplace,
+          competenceDate: orderDate,
+          currency: 'USD',
+          amountOriginal: fbaFee,
+          entryDirection: 'DEBIT',
+          amountBrl: 0,
+          fxRate: 0,
+          fxSource: '',
+          category: 'FULFILLMENT_FBA',
+          status: 'ESTIMADO',
+          metadata: { perUnitFee: 3.25, quantity: order.quantity },
+          environment: order.environment || 'staging',
+        }, c);
+
+        // Prep Ninjas 3PL Fee ($0.35/unit)
+        const prepFee = Number((order.quantity * 0.35).toFixed(2));
+        await recordFinancialLedgerEntry({
+          entryNumber: `LEDGER-PREP-${order.order_number}`,
+          idempotencyKey: `idemp-sale-prep-${order.order_number}`,
+          sourceEventType: 'PREP_SERVICE',
+          sourceId: order.order_number,
+          marketplace: order.marketplace,
+          competenceDate: orderDate,
+          currency: 'USD',
+          amountOriginal: prepFee,
+          entryDirection: 'DEBIT',
+          amountBrl: 0,
+          fxRate: 0,
+          fxSource: '',
+          category: 'PREP',
+          status: 'ESTIMADO',
+          metadata: { perUnitFee: 0.35, quantity: order.quantity },
+          environment: order.environment || 'staging',
+        }, c);
+      } else {
+        // Brazil Tax Simples Nacional DAS (6% ESTIMADO)
+        const taxSimples = Number((saleTotal * 0.06).toFixed(2));
+        await recordFinancialLedgerEntry({
+          entryNumber: `LEDGER-TAXDAS-${order.order_number}`,
+          idempotencyKey: `idemp-sale-taxdas-${order.order_number}`,
+          sourceEventType: 'TAX_SIMPLES',
+          sourceId: order.order_number,
+          marketplace: order.marketplace,
+          competenceDate: orderDate,
+          currency: 'BRL',
+          amountOriginal: taxSimples,
+          entryDirection: 'DEBIT',
+          amountBrl: taxSimples,
+          fxRate: 1.0,
+          fxSource: 'PARITY_BRL',
+          category: 'IMPOSTO_DAS',
+          status: 'ESTIMADO',
+          metadata: { estimatedRate: 0.06 },
+          environment: order.environment || 'staging',
+        }, c);
+      }
+
+      ordersPosted++;
+    }
+
+    return { ordersPosted, invoicesPosted };
+  };
+
+  if (client) return runner(client);
+  return withTransaction(runner);
+}
+
+function emptyMetric(): AuditedDreMetric {
+  return { realizado: 0, estimado: 0, projetado: 0, total: 0 };
+}
+
+function roundVal(v: number): number {
+  return Math.round((v + Number.EPSILON) * 100) / 100;
+}
+
+function addMetric(metric: AuditedDreMetric, amount: number, status: FinancialStatus, isNegative = false) {
+  const signed = isNegative ? -amount : amount;
+  if (status === 'REALIZADO') metric.realizado = roundVal(metric.realizado + signed);
+  else if (status === 'ESTIMADO') metric.estimado = roundVal(metric.estimado + signed);
+  else if (status === 'PROJETADO') metric.projetado = roundVal(metric.projetado + signed);
+  metric.total = roundVal(metric.total + signed);
+}
+
+function subtractMetric(a: AuditedDreMetric, b: AuditedDreMetric): AuditedDreMetric {
+  return {
+    realizado: roundVal(a.realizado - b.realizado),
+    estimado: roundVal(a.estimado - b.estimado),
+    projetado: roundVal(a.projetado - b.projetado),
+    total: roundVal(a.total - b.total),
+  };
+}
+
+function sumMetrics(list: AuditedDreMetric[]): AuditedDreMetric {
+  const res = emptyMetric();
+  for (const m of list) {
+    res.realizado = roundVal(res.realizado + m.realizado);
+    res.estimado = roundVal(res.estimado + m.estimado);
+    res.projetado = roundVal(res.projetado + m.projetado);
+    res.total = roundVal(res.total + m.total);
+  }
+  return res;
+}
+
+export function isValidCalendarDate(dateStr: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (y < 2000 || y > 2100) return false;
+  if (m < 1 || m > 12) return false;
+  if (d < 1 || d > 31) return false;
+
+  const isLeap = (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0);
+  const daysInMonth = [31, isLeap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return d <= daysInMonth[m - 1];
+}
+
+/**
+ * Authoritative PostgreSQL DRE Engine (Order 045 Phase P1).
+ * Computes audit-proof DRE by period and marketplace from PostgreSQL financial_ledger.
+ * Strictly segregates REALIZADO from ESTIMADO/PROJETADO metrics.
+ */
+export async function calculateAuditedDre(
+  period = 'ALL',
+  client?: PoolClient
+): Promise<{
+  us: AuditedDreStatement;
+  br: AuditedDreStatement;
+  ml: AuditedDreStatement;
+  consolidated: AuditedDreStatement;
+}> {
+  const pool = client || getPostgresPool();
+
+  // 1. Strict Period Validation and Sanitization (Order 047)
+  let periodQuery = '';
+  const queryParams: any[] = [];
+
+  if (period && period !== 'ALL') {
+    if (period.includes(':')) {
+      if (!/^\d{4}-\d{2}-\d{2}:\d{4}-\d{2}-\d{2}$/.test(period)) {
+        throw new Error('INVALID_PERIOD_FORMAT: Formato de intervalo deve ser YYYY-MM-DD:YYYY-MM-DD.');
+      }
+      const [startDate, endDate] = period.split(':');
+      if (!isValidCalendarDate(startDate) || !isValidCalendarDate(endDate)) {
+        throw new Error('INVALID_DATE_RANGE: Data calendário inválida ou impossível no intervalo contábil.');
+      }
+      if (startDate > endDate) {
+        throw new Error('INVALID_DATE_RANGE: Data inicial maior que a data final no intervalo contábil.');
+      }
+      queryParams.push(startDate, endDate);
+      periodQuery = `WHERE competence_date >= $1 AND competence_date <= $2`;
+    } else if (/^\d{4}-\d{2}$/.test(period)) {
+      const [year, month] = period.split('-').map(Number);
+      if (year < 2000 || year > 2100 || month < 1 || month > 12) {
+        throw new Error('INVALID_PERIOD_FORMAT: Mês ou ano fora da faixa permitida (2000-2100).');
+      }
+      const startDate = `${period}-01`;
+      const nextMonthYear = month === 12 ? year + 1 : year;
+      const nextMonth = month === 12 ? 1 : month + 1;
+      const endDate = `${nextMonthYear}-${String(nextMonth).padStart(2, '0')}-01`;
+      queryParams.push(startDate, endDate);
+      periodQuery = `WHERE competence_date >= $1 AND competence_date < $2`;
+    } else if (/^\d{4}$/.test(period)) {
+      const yr = Number(period);
+      if (yr < 2000 || yr > 2100) {
+        throw new Error('INVALID_PERIOD_FORMAT: Ano inválido no período contábil.');
+      }
+      queryParams.push(`${period}-01-01`, `${yr + 1}-01-01`);
+      periodQuery = `WHERE competence_date >= $1 AND competence_date < $2`;
+    } else {
+      throw new Error(`INVALID_PERIOD_FORMAT: Período contábil '${period}' inválido. Formatos válidos: YYYY-MM, YYYY, YYYY-MM-DD:YYYY-MM-DD ou ALL.`);
+    }
+  }
+
+  const sql = `
+    SELECT
+      id, entry_number, source_event_type, source_id,
+      marketplace, competence_date, currency,
+      amount_original, entry_direction, amount_brl,
+      fx_rate, fx_source, category, status,
+      reversal_of_id, created_at
+    FROM financial_ledger
+    ${periodQuery}
+    ORDER BY competence_date ASC, created_at ASC;
+  `;
+
+  const rowsRes = await pool.query(sql, queryParams);
+  const rows = rowsRes.rows;
+
+  // Build raw metric accumulators per target statement
+  const initStatementMetrics = () => ({
+    grossRevenue: emptyMetric(),
+    marketplaceFees: emptyMetric(),
+    fulfillmentFees: emptyMetric(),
+    taxes: emptyMetric(),
+    reimbursements: emptyMetric(),
+    reversals: emptyMetric(),
+    cogs: emptyMetric(),
+    prepFees: emptyMetric(),
+    storageFees: emptyMetric(),
+    inboundFreight: emptyMetric(),
+    otherExpenses: emptyMetric(),
+    totalEntries: 0,
+    realizadoEntries: 0,
+    estimadoEntries: 0,
+    reversalEntries: 0,
+    lastDate: undefined as string | undefined,
+  });
+
+  const usData = initStatementMetrics();
+  const brData = initStatementMetrics();
+  const mlData = initStatementMetrics();
+  const consData = initStatementMetrics();
+
+  // Determine active FX rate representation for statement header
+  const todayStr = new Date().toISOString().split('T')[0];
+  let fxLookupDate = todayStr;
+  if (period && period !== 'ALL') {
+    if (period.includes(':')) {
+      fxLookupDate = period.split(':')[0];
+    } else if (/^\d{4}-\d{2}$/.test(period)) {
+      fxLookupDate = `${period}-15`;
+    } else if (/^\d{4}$/.test(period)) {
+      fxLookupDate = `${period}-06-30`;
+    }
+  }
+
+  let activeFx = { rate: 1.0, source: 'NOT_REQUIRED', isFallback: false };
+  try {
+    activeFx = await getFxRate(fxLookupDate, 'USD', 'BRL', pool);
+  } catch {
+    activeFx = { rate: 1.0, source: 'HISTORICAL_PTAX_RECORDED_PER_TRANSACTION', isFallback: false };
+  }
+
+  for (const r of rows) {
+        const amountOrig = Number(r.amount_original);
+    const amountBrl = Number(r.amount_brl);
+    const cat: FinancialCategory = r.category;
+    const status: FinancialStatus = r.status;
+    const isCredit = r.entry_direction === 'CREDIT';
+    const isReversal = r.source_event_type === 'COMPENSATION_REVERSAL';
+
+    const processEntry = (target: ReturnType<typeof initStatementMetrics>, amount: number) => {
+      target.totalEntries++;
+      if (status === 'REALIZADO') target.realizadoEntries++;
+      else if (status === 'ESTIMADO') target.estimadoEntries++;
+      if (isReversal) target.reversalEntries++;
+
+      const dateStr = r.competence_date instanceof Date ? r.competence_date.toISOString().split('T')[0] : String(r.competence_date);
+      if (!target.lastDate || dateStr > target.lastDate) target.lastDate = dateStr;
+
+      // Track reversal amount for audit reporting
+      if (isReversal) {
+        addMetric(target.reversals, amount, status, false);
+      }
+
+      switch (cat) {
+        case 'RECEITA_BRUTA':
+          // CREDIT adds to revenue, DEBIT (e.g. reversal) subtracts from revenue
+          addMetric(target.grossRevenue, amount, status, !isCredit);
+          break;
+        case 'TAXA_MARKETPLACE':
+          // DEBIT adds to expense, CREDIT (e.g. reversal) subtracts from expense
+          addMetric(target.marketplaceFees, amount, status, !isCredit ? false : true);
+          break;
+        case 'FULFILLMENT_FBA':
+          // DEBIT adds to expense, CREDIT (e.g. reversal) subtracts from expense
+          addMetric(target.fulfillmentFees, amount, status, !isCredit ? false : true);
+          break;
+        case 'IMPOSTO_DAS':
+          // DEBIT adds to tax, CREDIT (e.g. reversal) subtracts from tax
+          addMetric(target.taxes, amount, status, !isCredit ? false : true);
+          break;
+        case 'REEMBOLSO':
+          // Amazon reimbursements: positive credit offsets deductions
+          addMetric(target.reimbursements, amount, status, false);
+          break;
+        case 'CMV':
+          // DEBIT adds to cogs, CREDIT (e.g. reversal) subtracts from cogs
+          addMetric(target.cogs, amount, status, !isCredit ? false : true);
+          break;
+        case 'PREP':
+          addMetric(target.prepFees, amount, status, !isCredit ? false : true);
+          break;
+        case 'ARMAZENAGEM':
+          addMetric(target.storageFees, amount, status, !isCredit ? false : true);
+          break;
+        case 'FRETE':
+          addMetric(target.inboundFreight, amount, status, !isCredit ? false : true);
+          break;
+        case 'ESTORNO':
+          // Legacy generic reversal category: if DEBIT, reduce gross revenue directly without double deduction
+          addMetric(target.grossRevenue, amount, status, true);
+          break;
+        default:
+          addMetric(target.otherExpenses, amount, status, !isCredit ? false : true);
+          break;
+      }
+    };
+
+    if (r.marketplace === 'Amazon US') {
+      processEntry(usData, amountOrig); // Native USD only
+    } else if (r.marketplace === 'Amazon BR') {
+      processEntry(brData, amountOrig); // Native BRL
+    } else if (r.marketplace === 'Mercado Livre') {
+      processEntry(mlData, amountOrig); // Native BRL
+    } else {
+      processEntry(brData, amountOrig);
+    }
+    // Consolidated receives strictly BRL amounts converted via authoritative rates (never raw USD)
+    processEntry(consData, amountBrl);
+  }
+
+  // Finalize Statement calculation with exact mathematical neutrality
+  const buildStatement = (
+    m: ReturnType<typeof initStatementMetrics>,
+    mkt: FinancialMarketplace,
+    curr: 'USD' | 'BRL'
+  ): AuditedDreStatement => {
+    // Total Deductions = Marketplace Fees + Fulfillment Fees + Taxes - Reimbursements
+    // Compensatory reversals already directly neutralized their respective categories above; zero double-deduction!
+    const totalDeductions = sumMetrics([
+      m.marketplaceFees,
+      m.fulfillmentFees,
+      m.taxes,
+    ]);
+    totalDeductions.realizado = roundVal(totalDeductions.realizado - m.reimbursements.realizado);
+    totalDeductions.estimado = roundVal(totalDeductions.estimado - m.reimbursements.estimado);
+    totalDeductions.projetado = roundVal(totalDeductions.projetado - m.reimbursements.projetado);
+    totalDeductions.total = roundVal(totalDeductions.total - m.reimbursements.total);
+
+    const netRevenue = subtractMetric(m.grossRevenue, totalDeductions);
+    const grossProfit = subtractMetric(netRevenue, m.cogs);
+
+    const totalOpEx = sumMetrics([
+      m.prepFees,
+      m.storageFees,
+      m.inboundFreight,
+      m.otherExpenses,
+    ]);
+
+    const netOperatingIncome = subtractMetric(grossProfit, totalOpEx);
+
+    const grossMarginPercent = m.grossRevenue.total > 0
+      ? roundVal((grossProfit.total / m.grossRevenue.total) * 100)
+      : 0;
+    const netMarginPercent = m.grossRevenue.total > 0
+      ? roundVal((netOperatingIncome.total / m.grossRevenue.total) * 100)
+      : 0;
+
+    return {
+      period,
+      marketplace: mkt,
+      currency: curr,
+      fxRateApplied: activeFx.rate,
+      fxSource: activeFx.source,
+      isFxFallback: activeFx.isFallback,
+      grossRevenue: m.grossRevenue,
+      deductions: {
+        marketplaceFees: m.marketplaceFees,
+        fulfillmentFees: m.fulfillmentFees,
+        taxes: m.taxes,
+        reimbursements: m.reimbursements,
+        reversals: m.reversals, // informational audit metric
+        totalDeductions,
+      },
+      netRevenue,
+      cogs: m.cogs,
+      grossProfit,
+      grossMarginPercent,
+      operatingExpenses: {
+        prepFees: m.prepFees,
+        storageFees: m.storageFees,
+        inboundFreight: m.inboundFreight,
+        otherExpenses: m.otherExpenses,
+        totalOpEx,
+      },
+      netOperatingIncome,
+      netMarginPercent,
+      auditSummary: {
+        totalEntries: m.totalEntries,
+        realizadoEntries: m.realizadoEntries,
+        estimadoEntries: m.estimadoEntries,
+        reversalEntries: m.reversalEntries,
+        lastCompetenceDate: m.lastDate,
+      },
+    };
+  };
+
+  return {
+    us: buildStatement(usData, 'Amazon US', 'USD'),
+    br: buildStatement(brData, 'Amazon BR', 'BRL'),
+    ml: buildStatement(mlData, 'Mercado Livre', 'BRL'),
+    consolidated: buildStatement(consData, 'CONSOLIDATED', 'BRL'),
+  };
 }

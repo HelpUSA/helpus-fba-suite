@@ -198,6 +198,125 @@ export interface DreStatement {
   netMarginPercent: number;
 }
 
+// ============================================================================
+// Phase P1: Authoritative Financial Ledger & DRE Types (Order 045)
+// ============================================================================
+
+export type FinancialLedgerSourceEventType =
+  | 'ORDER_SALE'
+  | 'INVOICE_PURCHASE'
+  | 'MARKETPLACE_FEE'
+  | 'FULFILLMENT_FBA'
+  | 'PREP_SERVICE'
+  | 'INBOUND_FREIGHT'
+  | 'STORAGE_FEE'
+  | 'TAX_SIMPLES'
+  | 'CUSTOMER_RETURN'
+  | 'REIMBURSEMENT'
+  | 'COMPENSATION_REVERSAL'
+  | 'ADJUSTMENT';
+
+export type FinancialMarketplace =
+  | 'Amazon US'
+  | 'Amazon BR'
+  | 'Mercado Livre'
+  | 'CONSOLIDATED'
+  | 'DIRECT_PURCHASE';
+
+export type FinancialCategory =
+  | 'RECEITA_BRUTA'
+  | 'CMV'
+  | 'TAXA_MARKETPLACE'
+  | 'FULFILLMENT_FBA'
+  | 'PREP'
+  | 'FRETE'
+  | 'ARMAZENAGEM'
+  | 'IMPOSTO_DAS'
+  | 'REEMBOLSO'
+  | 'ESTORNO'
+  | 'OUTRAS_DESPESAS';
+
+export type FinancialStatus = 'REALIZADO' | 'ESTIMADO' | 'PROJETADO';
+
+export interface FxRateRecord {
+  id?: string;
+  rateDate: string; // YYYY-MM-DD
+  currencyFrom: string;
+  currencyTo: string;
+  rate: number;
+  source: string;
+  isFallback: boolean;
+  createdAt?: string;
+}
+
+export interface FinancialLedgerEntry {
+  id?: string;
+  entryNumber: string;
+  idempotencyKey: string;
+  sourceEventType: FinancialLedgerSourceEventType;
+  sourceId: string;
+  marketplace: FinancialMarketplace;
+  competenceDate: string; // YYYY-MM-DD
+  currency: 'USD' | 'BRL';
+  amountOriginal: number;
+  entryDirection: 'CREDIT' | 'DEBIT';
+  amountBrl: number;
+  fxRate: number;
+  fxSource: string;
+  category: FinancialCategory;
+  status: FinancialStatus;
+  reversalOfId?: string;
+  metadata?: Record<string, unknown>;
+  createdAt?: string;
+  createdBy?: string;
+  environment?: 'staging' | 'production' | 'sandbox';
+}
+
+export interface AuditedDreMetric {
+  realizado: number;
+  estimado: number;
+  projetado: number;
+  total: number;
+}
+
+export interface AuditedDreStatement {
+  period: string; // e.g. '2026-10' or 'ALL'
+  marketplace: FinancialMarketplace;
+  currency: 'USD' | 'BRL';
+  fxRateApplied: number;
+  fxSource: string;
+  isFxFallback: boolean;
+  grossRevenue: AuditedDreMetric;
+  deductions: {
+    marketplaceFees: AuditedDreMetric;
+    fulfillmentFees: AuditedDreMetric;
+    taxes: AuditedDreMetric;
+    reimbursements: AuditedDreMetric;
+    reversals: AuditedDreMetric;
+    totalDeductions: AuditedDreMetric;
+  };
+  netRevenue: AuditedDreMetric;
+  cogs: AuditedDreMetric;
+  grossProfit: AuditedDreMetric;
+  grossMarginPercent: number;
+  operatingExpenses: {
+    prepFees: AuditedDreMetric;
+    storageFees: AuditedDreMetric;
+    inboundFreight: AuditedDreMetric;
+    otherExpenses: AuditedDreMetric;
+    totalOpEx: AuditedDreMetric;
+  };
+  netOperatingIncome: AuditedDreMetric;
+  netMarginPercent: number;
+  auditSummary: {
+    totalEntries: number;
+    realizadoEntries: number;
+    estimadoEntries: number;
+    reversalEntries?: number;
+    lastCompetenceDate?: string;
+  };
+}
+
 export interface ErpDatabaseState {
   version: string;
   lastUpdated: string;
