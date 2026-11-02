@@ -36,16 +36,22 @@ async function main() {
         has_table_privilege('staging_operator','public.fx_rates','INSERT') AS fx_insert,
         has_table_privilege('staging_operator','public.fx_rates','UPDATE') AS fx_update,
         has_table_privilege('staging_operator','public.fx_rates','DELETE') AS fx_delete,
+        has_table_privilege('staging_operator','public.fx_rates','TRUNCATE') AS fx_truncate,
+        has_table_privilege('staging_operator','public.fx_rates','REFERENCES') AS fx_references,
+        has_table_privilege('staging_operator','public.fx_rates','TRIGGER') AS fx_trigger,
         has_table_privilege('staging_operator','public.financial_ledger','SELECT') AS ledger_select,
         has_table_privilege('staging_operator','public.financial_ledger','INSERT') AS ledger_insert,
         has_table_privilege('staging_operator','public.financial_ledger','UPDATE') AS ledger_update,
-        has_table_privilege('staging_operator','public.financial_ledger','DELETE') AS ledger_delete`),
+        has_table_privilege('staging_operator','public.financial_ledger','DELETE') AS ledger_delete,
+        has_table_privilege('staging_operator','public.financial_ledger','TRUNCATE') AS ledger_truncate,
+        has_table_privilege('staging_operator','public.financial_ledger','REFERENCES') AS ledger_references,
+        has_table_privilege('staging_operator','public.financial_ledger','TRIGGER') AS ledger_trigger`),
       client.query("SELECT tgname,tgenabled FROM pg_trigger WHERE tgname IN ('trg_prevent_financial_ledger_tampering','trg_prevent_fx_rates_tampering','trg_p1_require_verified_fx_provenance') AND NOT tgisinternal")
     ]);
     const grants = privileges.rows[0];
     const protectedTriggers = trigger.rows.every(t => t.tgenabled === 'O') && trigger.rows.length === 3;
-    const leastPrivilege = grants.fx_select && !grants.fx_insert && !grants.fx_update && !grants.fx_delete &&
-      grants.ledger_select && grants.ledger_insert && !grants.ledger_update && !grants.ledger_delete;
+    const leastPrivilege = grants.fx_select && !grants.fx_insert && !grants.fx_update && !grants.fx_delete && !grants.fx_truncate && !grants.fx_references && !grants.fx_trigger &&
+      grants.ledger_select && grants.ledger_insert && !grants.ledger_update && !grants.ledger_delete && !grants.ledger_truncate && !grants.ledger_references && !grants.ledger_trigger;
     let totalUsdRealized = null, verifiedUsdRealized = null;
     if (missing.length === 0) {
       const counts = (await client.query(`SELECT count(*)::int AS total,
@@ -62,7 +68,7 @@ async function main() {
       schemaEvidenceColumnsPresent: missing.length === 0,
       missingColumns: missing,
       fxOperationalReadOnly: !!(grants.fx_select && !grants.fx_insert && !grants.fx_update && !grants.fx_delete),
-      ledgerOperationalAppendOnly: !!(grants.ledger_select && grants.ledger_insert && !grants.ledger_update && !grants.ledger_delete),
+      ledgerOperationalAppendOnly: !!(grants.ledger_select && grants.ledger_insert && !grants.ledger_update && !grants.ledger_delete && !grants.ledger_truncate && !grants.ledger_references && !grants.ledger_trigger),
       triggersEnabled: protectedTriggers,
       documentaryImporterValidated: false, // This read-only check cannot authenticate external documents.
       releaseGate: 'BLOCKED_UNTIL_DOCUMENTARY_IMPORTER_AND_REVIEW',
@@ -102,7 +108,7 @@ main().catch(err => {
       schemaEvidenceColumnsPresent: missing.length === 0,
       missingColumns: missing,
       fxOperationalReadOnly: !!(grants.fx_select && !grants.fx_insert && !grants.fx_update && !grants.fx_delete),
-      ledgerOperationalAppendOnly: !!(grants.ledger_select && grants.ledger_insert && !grants.ledger_update && !grants.ledger_delete),
+      ledgerOperationalAppendOnly: !!(grants.ledger_select && grants.ledger_insert && !grants.ledger_update && !grants.ledger_delete && !grants.ledger_truncate && !grants.ledger_references && !grants.ledger_trigger),
       triggersEnabled: protectedTriggers,
       documentaryImporterValidated: false, // This read-only check cannot authenticate external documents.
       releaseGate: 'BLOCKED_UNTIL_DOCUMENTARY_IMPORTER_AND_REVIEW',
