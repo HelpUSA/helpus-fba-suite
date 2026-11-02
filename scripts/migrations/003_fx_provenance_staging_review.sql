@@ -45,13 +45,16 @@ BEGIN
   IF NEW.fx_rate_id IS NULL THEN
     RAISE EXCEPTION 'FX_PROVENANCE_UNVERIFIED: verified fx_rate_id required';
   END IF;
-  SELECT id, rate_date, rate, source, evidence_ref, evidence_sha256,
-         evidence_kind, verified_at, verified_by, import_batch_id
+  SELECT id, rate_date, rate, source, currency_from, currency_to,
+         evidence_ref, evidence_sha256, evidence_kind, verified_at,
+         verified_by, import_batch_id
     INTO fx FROM public.fx_rates WHERE id=NEW.fx_rate_id;
-  IF NOT FOUND OR fx.evidence_ref IS NULL OR fx.evidence_sha256 IS NULL
+  IF NOT FOUND OR fx.currency_from <> NEW.currency OR fx.currency_to <> 'BRL'
+      OR NULLIF(BTRIM(fx.evidence_ref), '') IS NULL OR fx.evidence_sha256 IS NULL
       OR fx.evidence_sha256 !~ '^[0-9a-fA-F]{64}$'
-      OR fx.verified_at IS NULL OR fx.verified_by IS NULL
-      OR fx.import_batch_id IS NULL
+      OR fx.verified_at IS NULL OR fx.verified_at > NOW()
+      OR NULLIF(BTRIM(fx.verified_by), '') IS NULL
+      OR NULLIF(BTRIM(fx.import_batch_id), '') IS NULL
       OR fx.evidence_kind NOT IN ('BCB_OFFICIAL_DATASET','SETTLEMENT_DOCUMENT')
       OR fx.source NOT IN ('BCB_PTAX','BCB_PTAX_OFICIAL','BACEN_PTAX','OFFICIAL_SETTLEMENT')
       OR fx.rate <> NEW.fx_rate THEN
