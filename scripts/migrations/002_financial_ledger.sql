@@ -1,5 +1,5 @@
 -- Migration 002: Auditable Financial Ledger & Multi-Currency FX Engine (Phase P1)
--- Enforces double-entry style auditable transaction logging, historical FX conversion,
+-- Enforces append-only financial event ledger semantics, historical FX conversion,
 -- and strict separation between REALIZADO, ESTIMADO, and PROJETADO metrics.
 -- STRICTLY ISOLATED TO STAGING ENVIRONMENT (Order 045).
 

@@ -28,7 +28,7 @@ if (fs.existsSync(envLocalPath)) {
 
 async function runTestSuite() {
   console.log('================================================================');
-  console.log('SUÍTE DE AUDITORIA & HARDENING FINAL P1: ORDEM 047');
+  console.log('SUÍTE DE AUDITORIA & QA FINAL P1: ORDEM 048');
   console.log('================================================================');
 
   const stagingUrl = process.env.STAGING_DATABASE_URL;
@@ -53,7 +53,7 @@ async function runTestSuite() {
 
   // -------------------------------------------------------------
   // SETUP DE TESTE ISOLADO & REVERSÍVEL (SCHEMA DEDICADO)
-  // Sem qualquer bypass ou adulteração de registros compartilhados (Ordem 047 Item 1)
+  // Sem qualquer bypass ou adulteração de registros compartilhados (Ordem 048)
   // -------------------------------------------------------------
   const isolatedSchema = 'p1_test_isolated';
   console.log(`\n[Isolamento] Configurando schema de teste controlado: ${isolatedSchema}...`);
@@ -81,9 +81,6 @@ async function runTestSuite() {
     ssl: { rejectUnauthorized: true },
     max: 12,
   });
-  isolatedPool.on('connect', async (client) => {
-    await client.query(`SET search_path TO ${isolatedSchema}, public;`);
-  });
 
   // Client específico do teste com search_path configurado
   const testClient = await isolatedPool.connect();
@@ -105,9 +102,9 @@ async function runTestSuite() {
 
   try {
     // -------------------------------------------------------------
-    // BLOCO 1: TAXAS DE CÂMBIO HISTÓRICAS, IMMUTABILITY & SYNTHETIC_TEST_RATE
+    // BLOCO 1: TAXAS FX, IMUTABILIDADE & REJEIÇÃO DE FX ARBITRÁRIO EM REALIZADO
     // -------------------------------------------------------------
-    console.log('\n--- Bloco 1: Taxas FX, Imutabilidade e SYNTHETIC_TEST_RATE (Item 4) ---');
+    console.log('\n--- Bloco 1: Taxas FX, Imutabilidade e Rejeição de FX Arbitrário em REALIZADO (Item 4) ---');
 
     // 1.1 Inserir taxa de teste documentada com SYNTHETIC_TEST_RATE
     const testFx: FxRateRecord = {
@@ -169,10 +166,66 @@ async function runTestSuite() {
     }
     assert(fxUnavailableCaught, 'Cotação ausente dispara FX_RATE_UNAVAILABLE (proibido inventar cotação)');
 
+    // 1.8 Rejeitar taxa FX arbitrária injetada em lançamento REALIZADO sem documento (Item 4)
+    let arbitraryFxBlocked = false;
+    try {
+      await recordFinancialLedgerEntry({
+        entryNumber: `TEST-P1-ARB-FX-${Date.now()}`,
+        idempotencyKey: `idemp-arb-fx-${Date.now()}`,
+        sourceEventType: 'ORDER_SALE',
+        sourceId: 'ORD-ARB-001',
+        marketplace: 'Amazon US',
+        competenceDate: '2026-10-15',
+        currency: 'USD',
+        amountOriginal: 100.00,
+        entryDirection: 'CREDIT',
+        amountBrl: 699.00,
+        fxRate: 6.99, // Arbitrary custom rate not matching the 5.6842 in fx_rates
+        fxSource: 'INVENTED_SOURCE',
+        category: 'RECEITA_BRUTA',
+        status: 'REALIZADO',
+        metadata: { sku: 'SKU-ARB', quantity: 1 },
+        environment: 'staging',
+      }, testClient);
+    } catch (e: any) {
+      if (e.message.includes('FX_ORIGIN_UNVERIFIED')) {
+        arbitraryFxBlocked = true;
+      }
+    }
+    assert(arbitraryFxBlocked, 'Lançamento REALIZADO com FX arbitrário sem origem documental é rejeitado com FX_ORIGIN_UNVERIFIED');
+
+    // 1.9 Rejeitar data calendário impossível em lançamento contábil (Ex: 2026-02-30)
+    let impossibleDateBlocked = false;
+    try {
+      await recordFinancialLedgerEntry({
+        entryNumber: `TEST-P1-IMP-DATE-${Date.now()}`,
+        idempotencyKey: `idemp-imp-date-${Date.now()}`,
+        sourceEventType: 'ORDER_SALE',
+        sourceId: 'ORD-IMP-001',
+        marketplace: 'Amazon US',
+        competenceDate: '2026-02-30', // Impossible date
+        currency: 'USD',
+        amountOriginal: 100.00,
+        entryDirection: 'CREDIT',
+        amountBrl: 568.42,
+        fxRate: 5.6842,
+        fxSource: 'SYNTHETIC_TEST_RATE',
+        category: 'RECEITA_BRUTA',
+        status: 'REALIZADO',
+        metadata: { sku: 'SKU-IMP', quantity: 1 },
+        environment: 'staging',
+      }, testClient);
+    } catch (e: any) {
+      if (e.message.includes('INVALID_DATE_FORMAT')) {
+        impossibleDateBlocked = true;
+      }
+    }
+    assert(impossibleDateBlocked, 'Data de competência impossível no calendário (2026-02-30) é rejeitada com INVALID_DATE_FORMAT');
+
     // -------------------------------------------------------------
-    // BLOCO 2: IDEMPOTÊNCIA COM FINGERPRINT INTEGRAL (Item 2)
+    // BLOCO 2: IDEMPOTÊNCIA COM FINGERPRINT INTEGRAL & METADADOS FINANCEIROS
     // -------------------------------------------------------------
-    console.log('\n--- Bloco 2: Idempotência com Fingerprint Integral (Item 2) ---');
+    console.log('\n--- Bloco 2: Idempotência com Fingerprint Integral e Metadados Financeiros (Item 3) ---');
 
     const entryIdempKey = `test-idemp-${Date.now()}`;
     const baseEntry: FinancialLedgerEntry = {
@@ -190,18 +243,26 @@ async function runTestSuite() {
       fxSource: 'SYNTHETIC_TEST_RATE',
       category: 'RECEITA_BRUTA',
       status: 'REALIZADO',
-      metadata: { sku: 'TEST-SKU-1', quantity: 1 },
+      metadata: { sku: 'TEST-SKU-1', quantity: 1, unitPrice: 100.00 },
       environment: 'staging',
     };
 
     const recorded1 = await recordFinancialLedgerEntry(baseEntry, testClient);
     assert(recorded1.entryNumber === baseEntry.entryNumber, 'Lançamento gravado com sucesso no schema isolado');
 
-    // 2.1 Reenvio com mesmo payload integral retorna exatamente o mesmo registro
+    // 2.1 Reenvio com mesmo payload integral retorna exatamente o mesmo registro (sem falsos conflitos)
     const recorded2 = await recordFinancialLedgerEntry({ ...baseEntry }, testClient);
     assert(recorded2.id === recorded1.id, 'Idempotência com fingerprint integral idêntico retorna mesmo registro');
 
-    // 2.2 Teste de divergência em cada dimensão do fingerprint
+    // 2.2 Reenvio com FX omitido (calculado automaticamente) converge sem falso conflito
+    const recordedCalc = await recordFinancialLedgerEntry({
+      ...baseEntry,
+      fxRate: 0,
+      fxSource: '',
+    }, testClient);
+    assert(recordedCalc.id === recorded1.id, 'Reenvio com FX calculado automaticamente converge determinísticamente sem falso conflito');
+
+    // 2.3 Teste de divergência em cada dimensão do fingerprint
     const divergenceTests = [
       { name: 'amountOriginal', patch: { amountOriginal: 200.00 } },
       { name: 'currency', patch: { currency: 'BRL' as const } },
@@ -210,6 +271,10 @@ async function runTestSuite() {
       { name: 'category', patch: { category: 'CMV' as const } },
       { name: 'entryDirection', patch: { entryDirection: 'DEBIT' as const } },
       { name: 'status', patch: { status: 'ESTIMADO' as const } },
+      { name: 'fxSource', patch: { fxSource: 'DIFFERENT_FX_SOURCE' } },
+      { name: 'metadata.unitPrice', patch: { metadata: { sku: 'TEST-SKU-1', quantity: 1, unitPrice: 999.00 } } },
+      { name: 'metadata.quantity', patch: { metadata: { sku: 'TEST-SKU-1', quantity: 50, unitPrice: 100.00 } } },
+      { name: 'metadata.sku', patch: { metadata: { sku: 'CHANGED-SKU-99', quantity: 1, unitPrice: 100.00 } } },
     ];
 
     for (const dt of divergenceTests) {
@@ -225,9 +290,9 @@ async function runTestSuite() {
     }
 
     // -------------------------------------------------------------
-    // BLOCO 3: CONCORRÊNCIA REAL COM PAYLOAD IGUAL E DIVERGENTE (Item 2)
+    // BLOCO 3: CONCORRÊNCIA REAL COM PAYLOAD IGUAL E DIVERGENTE
     // -------------------------------------------------------------
-    console.log('\n--- Bloco 3: Concorrência Real com Payload Igual e Divergente (Item 2) ---');
+    console.log('\n--- Bloco 3: Concorrência Real com Payload Igual e Divergente (Item 3) ---');
 
     const concurrentKey = `test-concurrent-${Date.now()}`;
     const concurrentPayload: FinancialLedgerEntry = {
@@ -268,26 +333,77 @@ async function runTestSuite() {
 
     const concurrentResults = await Promise.all(concurrentPromises);
     const uniqueIds = new Set(concurrentResults.map((r) => r.id));
-    console.log('    [Debug Concurrency] Unique IDs count:', uniqueIds.size, 'IDs:', Array.from(uniqueIds));
+    console.log('    [Debug Concurrency] Unique IDs:', Array.from(uniqueIds));
     assert(uniqueIds.size === 1, '10 inserções simultâneas concorrentes convergiram para exatamente 1 registro sem erro UNIQUE');
 
     // -------------------------------------------------------------
-    // BLOCO 4: ESTORNOS COMPENSATÓRIOS & PRESERVAÇÃO DE CLASSIFICAÇÃO (Item 3)
+    // BLOCO 4: ESTORNOS COMPENSATÓRIOS MULTICANAL (US, BR, ML) & PRESERVAÇÃO
     // -------------------------------------------------------------
-    console.log('\n--- Bloco 4: Estornos Compensatórios e Preservação de Status (Item 3) ---');
+    console.log('\n--- Bloco 4: Estornos Multicanal (US, BR, ML) & Preservação (Item 5) ---');
 
-    // 4.1 Estorno de lançamento REALIZADO permanece REALIZADO
-    const revRealizado = await recordCompensatoryReversal(
+    // 4.1 Estorno US REALIZADO
+    const revUsRealizado = await recordCompensatoryReversal(
       recorded1.entryNumber,
-      'Cancelamento de pedido aprovado',
+      'Cancelamento pedido US',
       'AUDITOR_SUPERADMIN',
       testClient
     );
-    assert(revRealizado.status === 'REALIZADO', 'Estorno de registro REALIZADO preserva status REALIZADO');
-    assert(revRealizado.entryDirection === 'DEBIT', 'Estorno inverte direção contábil (CREDIT -> DEBIT)');
-    assert(revRealizado.category === 'RECEITA_BRUTA', 'Estorno neutraliza 1:1 categoria RECEITA_BRUTA');
+    assert(revUsRealizado.status === 'REALIZADO', 'Estorno US REALIZADO preserva status REALIZADO');
+    assert(revUsRealizado.currency === 'USD', 'Estorno US preserva moeda USD');
+    assert(revUsRealizado.category === 'RECEITA_BRUTA', 'Estorno US neutraliza 1:1 categoria RECEITA_BRUTA');
+    assert(revUsRealizado.entryDirection === 'DEBIT', 'Estorno US inverte CREDIT para DEBIT');
 
-    // 4.2 Lançamento ESTIMADO
+    // 4.2 Lançamento e Estorno no Mercado Livre (BRL)
+    const mlEntry: FinancialLedgerEntry = {
+      entryNumber: `TEST-P1-ML-SALE-${Date.now()}`,
+      idempotencyKey: `idemp-ml-sale-${Date.now()}`,
+      sourceEventType: 'ORDER_SALE',
+      sourceId: 'ORD-ML-SALE-101',
+      marketplace: 'Mercado Livre',
+      competenceDate: '2026-10-22',
+      currency: 'BRL',
+      amountOriginal: 180.00,
+      entryDirection: 'CREDIT',
+      amountBrl: 180.00,
+      fxRate: 1.0,
+      fxSource: 'PARITY_BRL',
+      category: 'RECEITA_BRUTA',
+      status: 'REALIZADO',
+      metadata: { channel: 'Mercado Livre' },
+      environment: 'staging',
+    };
+    const recordedMl = await recordFinancialLedgerEntry(mlEntry, testClient);
+    const revMlRealizado = await recordCompensatoryReversal(
+      recordedMl.entryNumber,
+      'Devolução do comprador Mercado Livre',
+      'AUDITOR_SUPERADMIN',
+      testClient
+    );
+    assert(revMlRealizado.status === 'REALIZADO', 'Estorno ML preserva status REALIZADO');
+    assert(revMlRealizado.marketplace === 'Mercado Livre', 'Estorno ML preserva canal Mercado Livre');
+    assert(revMlRealizado.currency === 'BRL', 'Estorno ML preserva moeda BRL');
+
+    // Inserir venda definitiva no Mercado Livre que permanecerá ativa
+    await recordFinancialLedgerEntry({
+      entryNumber: `TEST-P1-ML-KEEP-${Date.now()}`,
+      idempotencyKey: `idemp-ml-keep-${Date.now()}`,
+      sourceEventType: 'ORDER_SALE',
+      sourceId: 'ORD-ML-KEEP-202',
+      marketplace: 'Mercado Livre',
+      competenceDate: '2026-10-25',
+      currency: 'BRL',
+      amountOriginal: 180.00,
+      entryDirection: 'CREDIT',
+      amountBrl: 180.00,
+      fxRate: 1.0,
+      fxSource: 'PARITY_BRL',
+      category: 'RECEITA_BRUTA',
+      status: 'REALIZADO',
+      metadata: { platform: 'Mercado Livre' },
+      environment: 'staging',
+    }, testClient);
+
+    // 4.3 Lançamento e Estorno de Taxa ESTIMADO
     const estEntry: FinancialLedgerEntry = {
       entryNumber: `TEST-P1-EST-FEE-${Date.now()}`,
       idempotencyKey: `idemp-est-fee-${Date.now()}`,
@@ -309,7 +425,6 @@ async function runTestSuite() {
     const recordedEst = await recordFinancialLedgerEntry(estEntry, testClient);
     assert(recordedEst.status === 'ESTIMADO', 'Lançamento original registrado como ESTIMADO');
 
-    // 4.3 Estorno de lançamento ESTIMADO NÃO pode virar REALIZADO (Item 3)
     const revEstimado = await recordCompensatoryReversal(
       recordedEst.entryNumber,
       'Ajuste de estimativa de fulfillment',
@@ -321,9 +436,9 @@ async function runTestSuite() {
     assert(revEstimado.category === 'FULFILLMENT_FBA', 'Estorno mantém categoria FULFILLMENT_FBA');
 
     // -------------------------------------------------------------
-    // BLOCO 5: IMUTABILIDADE DO TRIGGER & VERIFICAÇÃO ATIVA (Item 1)
+    // BLOCO 5: IMUTABILIDADE DO TRIGGER & VERIFICAÇÃO ATIVA (Item 6)
     // -------------------------------------------------------------
-    console.log('\n--- Bloco 5: Imutabilidade Estrita do Trigger (Item 1) ---');
+    console.log('\n--- Bloco 5: Imutabilidade Estrita do Trigger (Item 6) ---');
 
     let trgBlockedUpdate = false;
     try {
@@ -363,11 +478,11 @@ async function runTestSuite() {
     );
 
     // -------------------------------------------------------------
-    // BLOCO 6: VALIDAÇÃO DE PERÍODOS & SEGREGAÇÃO MULTICANAL (Item 5)
+    // BLOCO 6: VALIDAÇÃO DE DATAS CALENDÁRIO & SEGREGAÇÃO MULTICANAL (Item 2 & 5)
     // -------------------------------------------------------------
-    console.log('\n--- Bloco 6: Validação de Períodos e Segregação Multicanal (Item 5) ---');
+    console.log('\n--- Bloco 6: Validação de Datas Calendário e Segregação Multicanal (Item 2 & 5) ---');
 
-    // 6.1 Teste de intervalo invertido (startDate > endDate) -> INVALID_DATE_RANGE
+    // 6.1 Intervalo invertido
     let invertedRangeBlocked = false;
     try {
       await calculateAuditedDre('2026-11-15:2026-10-15', testClient);
@@ -378,18 +493,29 @@ async function runTestSuite() {
     }
     assert(invertedRangeBlocked, 'Intervalo de datas invertido dispara INVALID_DATE_RANGE');
 
-    // 6.2 Teste de formato inválido -> INVALID_PERIOD_FORMAT
-    let invalidFormatBlocked = false;
+    // 6.2 Data impossível no calendário em range (ex: 2026-02-30)
+    let impossibleDateRangeBlocked = false;
     try {
-      await calculateAuditedDre('periodo-invalido', testClient);
+      await calculateAuditedDre('2026-02-30:2026-03-15', testClient);
     } catch (e: any) {
-      if (e.message.includes('INVALID_PERIOD_FORMAT')) {
-        invalidFormatBlocked = true;
+      if (e.message.includes('INVALID_DATE_RANGE')) {
+        impossibleDateRangeBlocked = true;
       }
     }
-    assert(invalidFormatBlocked, 'Formato de período textual arbitrário dispara INVALID_PERIOD_FORMAT');
+    assert(impossibleDateRangeBlocked, 'Data inexistente (2026-02-30) no intervalo dispara INVALID_DATE_RANGE');
 
-    // 6.3 Teste de mês inválido (mês 13) -> INVALID_PERIOD_FORMAT
+    // 6.3 Data de 31 de Abril (mês de 30 dias)
+    let april31Blocked = false;
+    try {
+      await calculateAuditedDre('2026-04-01:2026-04-31', testClient);
+    } catch (e: any) {
+      if (e.message.includes('INVALID_DATE_RANGE')) {
+        april31Blocked = true;
+      }
+    }
+    assert(april31Blocked, 'Data impossível (2026-04-31) no intervalo dispara INVALID_DATE_RANGE');
+
+    // 6.4 Mês inválido (2026-13)
     let invalidMonthBlocked = false;
     try {
       await calculateAuditedDre('2026-13', testClient);
@@ -400,51 +526,43 @@ async function runTestSuite() {
     }
     assert(invalidMonthBlocked, 'Mês inexistente (2026-13) dispara INVALID_PERIOD_FORMAT');
 
-    // 6.4 Inserir venda no Mercado Livre para testar segregação multicanal
-    await recordFinancialLedgerEntry({
-      entryNumber: `TEST-P1-ML-001-${Date.now()}`,
-      idempotencyKey: `test-idemp-ml-${Date.now()}`,
-      sourceEventType: 'ORDER_SALE',
-      sourceId: 'ORD-ML-555',
-      marketplace: 'Mercado Livre',
-      competenceDate: '2026-10-25',
-      currency: 'BRL',
-      amountOriginal: 180.00,
-      entryDirection: 'CREDIT',
-      amountBrl: 180.00,
-      fxRate: 1.0,
-      fxSource: 'PARITY_BRL',
-      category: 'RECEITA_BRUTA',
-      status: 'REALIZADO',
-      metadata: { platform: 'Mercado Livre' },
-      environment: 'staging',
-    }, testClient);
+    // 6.5 Ano fora de faixa (1999)
+    let outOfRangeYearBlocked = false;
+    try {
+      await calculateAuditedDre('1999', testClient);
+    } catch (e: any) {
+      if (e.message.includes('INVALID_PERIOD_FORMAT')) {
+        outOfRangeYearBlocked = true;
+      }
+    }
+    assert(outOfRangeYearBlocked, 'Ano fora da faixa permitida (1999) dispara INVALID_PERIOD_FORMAT');
 
-    // 6.5 Calcular DRE e demonstrar segregação e moedas
+    // 6.6 Demonstrativo Multicanal DRE com Não-Duplicação e Preservação
     const dreResult = await calculateAuditedDre('2026-10', testClient);
 
-    // Amazon US: moeda nativa USD
+    // Amazon US: neutralizada 1:1, sem distorção
     assert(dreResult.us.currency === 'USD', 'Demonstrativo Amazon US expresso estritamente em moeda nativa USD');
-    assert(dreResult.us.grossRevenue.total === 0.00, 'Receita Amazon US neutralizada pelo estorno 1:1 (100 - 100 = 0)');
-    assert(dreResult.us.deductions.fulfillmentFees.total === 0.00, 'Tarifa FBA estimada da US neutralizada pelo estorno estimado (15 - 15 = 0)');
+    assert(dreResult.us.grossRevenue.total === 0.00, 'Receita Amazon US neutralizada pelo estorno (100 - 100 = 0)');
+    assert(dreResult.us.deductions.fulfillmentFees.total === 0.00, 'Tarifa FBA estimada US neutralizada pelo estorno (15 - 15 = 0)');
 
-    // Amazon BR: moeda nativa BRL
+    // Amazon BR: nativa BRL
     assert(dreResult.br.currency === 'BRL', 'Demonstrativo Amazon BR expresso estritamente em moeda nativa BRL');
     assert(dreResult.br.grossRevenue.total === 250.50, 'Receita Amazon BR contém exclusivamente suas vendas nativas (250.50 BRL)');
 
-    // Mercado Livre: segregado em BRL
+    // Mercado Livre: ativo e segregado (venda 180 estornada + venda 180 mantida = 180.00)
     assert(dreResult.ml.currency === 'BRL', 'Demonstrativo Mercado Livre expresso separadamente em BRL');
     assert(dreResult.ml.grossRevenue.total === 180.00, 'Receita Mercado Livre segregada com exatidão (180.00 BRL)');
+    assert(dreResult.ml.auditSummary.reversalEntries === 1, 'Auditoria do Mercado Livre documenta exatamente 1 estorno');
 
-    // Consolidado: soma em BRL via conversão autoritativa sem misturar USD diretamente
-    // Consolidado Bruto = 250.50 (Amazon BR) + 180.00 (Mercado Livre) = 430.50 BRL
+    // Consolidado Global: soma exclusiva em BRL via taxas autoritativas (sem soma indevida de USD)
+    // Consolidado = 250.50 (Amazon BR) + 180.00 (Mercado Livre) = 430.50 BRL
     assert(
       dreResult.consolidated.currency === 'BRL' && dreResult.consolidated.grossRevenue.total === 430.50,
       'Consolidado Global agrega exclusivamente valores em BRL convertidos (250.50 + 180.00 = 430.50 BRL, sem soma indevida de USD)'
     );
 
     // -------------------------------------------------------------
-    // BLOCO 7: TEARDOWN CONTROLADO & AUDITORIA DE RECONCILIAÇÃO (Item 7)
+    // BLOCO 7: TEARDOWN CONTROLADO & AUDITORIA DE RECONCILIAÇÃO
     // -------------------------------------------------------------
     console.log('\n--- Bloco 7: Teardown Controlado & Verificação da Base Pública ---');
 

@@ -930,8 +930,13 @@ export async function recordFinancialLedgerEntry(
   client?: PoolClient
 ): Promise<FinancialLedgerEntry> {
   const runner = async (c: PoolClient) => {
+    // Validate calendar date sanity for transaction entry
+    if (!isValidCalendarDate(entry.competenceDate)) {
+      throw new Error(`INVALID_DATE_FORMAT: Data de competência '${entry.competenceDate}' inválida ou impossível no calendário.`);
+    }
+
     // Helper: Integral fingerprint validation for full payload integrity
-    const validateFingerprint = (existing: any, _targetFxRate?: number) => {
+    const validateFingerprint = (existing: any, targetFxRate?: number, targetFxSource?: string) => {
       const diffs: string[] = [];
       if (existing.currency !== entry.currency) diffs.push(`currency (${existing.currency} vs ${entry.currency})`);
       if (Math.abs(Number(existing.amount_original) - entry.amountOriginal) > 0.001) {
@@ -945,9 +950,16 @@ export async function recordFinancialLedgerEntry(
       if (existing.category !== entry.category) diffs.push(`category (${existing.category} vs ${entry.category})`);
       if (existing.entry_direction !== entry.entryDirection) diffs.push(`entryDirection (${existing.entry_direction} vs ${entry.entryDirection})`);
       if (existing.status !== entry.status) diffs.push(`status (${existing.status} vs ${entry.status})`);
-      if (entry.fxRate && entry.fxRate > 0 && Math.abs(Number(existing.fx_rate) - entry.fxRate) > 0.0001) {
-        diffs.push(`fxRate (${existing.fx_rate} vs ${entry.fxRate})`);
+      
+      const checkFxRate = targetFxRate ?? (entry.fxRate && entry.fxRate > 0 ? entry.fxRate : undefined);
+      if (checkFxRate !== undefined && Math.abs(Number(existing.fx_rate) - checkFxRate) > 0.0001) {
+        diffs.push(`fxRate (${existing.fx_rate} vs ${checkFxRate})`);
       }
+      const checkFxSource = targetFxSource ?? entry.fxSource;
+      if (checkFxSource && existing.fx_source !== checkFxSource) {
+        diffs.push(`fxSource (${existing.fx_source} vs ${checkFxSource})`);
+      }
+
       const existEnv = existing.environment || 'staging';
       const entryEnv = entry.environment || 'staging';
       if (existEnv !== entryEnv) diffs.push(`environment (${existEnv} vs ${entryEnv})`);
@@ -957,6 +969,24 @@ export async function recordFinancialLedgerEntry(
       if (existing.source_event_type !== entry.sourceEventType) diffs.push(`sourceEventType (${existing.source_event_type} vs ${entry.sourceEventType})`);
       if (existing.source_id !== entry.sourceId) diffs.push(`sourceId (${existing.source_id} vs ${entry.sourceId})`);
 
+      // Financial metadata comparison
+      if (entry.metadata && typeof entry.metadata === 'object' && existing.metadata && typeof existing.metadata === 'object') {
+        const financialKeys = ['sku', 'quantity', 'unitPrice', 'unitCost', 'feeRate'];
+        for (const k of financialKeys) {
+          if (k in entry.metadata && k in existing.metadata) {
+            const v1 = (entry.metadata as any)[k];
+            const v2 = existing.metadata[k];
+            if (typeof v1 === 'number' && typeof v2 === 'number') {
+              if (Math.abs(v1 - v2) > 0.0001) {
+                diffs.push(`metadata.${k} (${v2} vs ${v1})`);
+              }
+            } else if (v1 !== undefined && v2 !== undefined && String(v1) !== String(v2)) {
+              diffs.push(`metadata.${k} (${v2} vs ${v1})`);
+            }
+          }
+        }
+      }
+
       if (diffs.length > 0) {
         throw new Error(
           `IDEMPOTENCY_PAYLOAD_MISMATCH: Idempotency key '${entry.idempotencyKey}' already exists with divergent payload parameters (${diffs.join(', ')}).`
@@ -964,26 +994,38 @@ export async function recordFinancialLedgerEntry(
       }
     };
 
-    // 1. Idempotency Check with Integral Payload Fingerprint Verification
+    // 1. Idempotency Pre-Check with Deterministic FX Matching
     const checkRes = await c.query(
       `SELECT * FROM financial_ledger WHERE idempotency_key = $1;`,
       [entry.idempotencyKey]
     );
     if (checkRes.rows.length > 0) {
       const existing = checkRes.rows[0];
-      validateFingerprint(existing, Number(existing.fx_rate));
+      const resRate = (entry.fxRate && entry.fxRate > 0) ? entry.fxRate : Number(existing.fx_rate);
+      const resSource = entry.fxSource || existing.fx_source;
+      validateFingerprint(existing, resRate, resSource);
       return mapLedgerRowToEntry(existing);
     }
 
-    // 2. Compute BRL and FX if not explicitly passed
+    // 2. Compute and strictly verify FX rates for REALIZADO transactions
     let fxRate = entry.fxRate;
     let fxSource = entry.fxSource;
     if (entry.currency === 'USD') {
-      if (!fxRate || fxRate <= 0) {
-        const fxInfo = await getFxRate(entry.competenceDate, 'USD', 'BRL', c);
-        fxRate = fxInfo.rate;
-        fxSource = fxInfo.source;
+      const fxInfo = await getFxRate(entry.competenceDate, 'USD', 'BRL', c);
+      if (entry.status === 'REALIZADO' && entry.fxRate && entry.fxRate > 0) {
+        if (Math.abs(entry.fxRate - fxInfo.rate) > 0.0001) {
+          throw new Error(
+            `FX_ORIGIN_UNVERIFIED: Cotação informada (${entry.fxRate}) diverge da taxa oficial documentada (${fxInfo.rate}) para ${entry.competenceDate}. Lançamentos REALIZADO proíbem taxa arbitrária sem comprovação.`
+          );
+        }
+        if (entry.fxSource && entry.fxSource !== fxInfo.source) {
+          throw new Error(
+            `FX_ORIGIN_UNVERIFIED: Fonte cambial informada (${entry.fxSource}) diverge da fonte documentada (${fxInfo.source}) para ${entry.competenceDate}.`
+          );
+        }
       }
+      fxRate = (entry.fxRate && entry.fxRate > 0) ? entry.fxRate : fxInfo.rate;
+      fxSource = entry.fxSource || fxInfo.source;
     } else {
       fxRate = 1.0;
       fxSource = 'PARITY_BRL';
@@ -1042,7 +1084,7 @@ export async function recordFinancialLedgerEntry(
     );
     if (conflictRes.rows.length > 0) {
       const existing = conflictRes.rows[0];
-      validateFingerprint(existing, fxRate);
+      validateFingerprint(existing, fxRate, fxSource);
       return mapLedgerRowToEntry(existing);
     }
 
@@ -1300,6 +1342,18 @@ function sumMetrics(list: AuditedDreMetric[]): AuditedDreMetric {
   return res;
 }
 
+export function isValidCalendarDate(dateStr: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (y < 2000 || y > 2100) return false;
+  if (m < 1 || m > 12) return false;
+  if (d < 1 || d > 31) return false;
+
+  const isLeap = (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0);
+  const daysInMonth = [31, isLeap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return d <= daysInMonth[m - 1];
+}
+
 /**
  * Authoritative PostgreSQL DRE Engine (Order 045 Phase P1).
  * Computes audit-proof DRE by period and marketplace from PostgreSQL financial_ledger.
@@ -1326,6 +1380,9 @@ export async function calculateAuditedDre(
         throw new Error('INVALID_PERIOD_FORMAT: Formato de intervalo deve ser YYYY-MM-DD:YYYY-MM-DD.');
       }
       const [startDate, endDate] = period.split(':');
+      if (!isValidCalendarDate(startDate) || !isValidCalendarDate(endDate)) {
+        throw new Error('INVALID_DATE_RANGE: Data calendário inválida ou impossível no intervalo contábil.');
+      }
       if (startDate > endDate) {
         throw new Error('INVALID_DATE_RANGE: Data inicial maior que a data final no intervalo contábil.');
       }
@@ -1333,8 +1390,8 @@ export async function calculateAuditedDre(
       periodQuery = `WHERE competence_date >= $1 AND competence_date <= $2`;
     } else if (/^\d{4}-\d{2}$/.test(period)) {
       const [year, month] = period.split('-').map(Number);
-      if (month < 1 || month > 12) {
-        throw new Error('INVALID_PERIOD_FORMAT: Mês inválido no período contábil.');
+      if (year < 2000 || year > 2100 || month < 1 || month > 12) {
+        throw new Error('INVALID_PERIOD_FORMAT: Mês ou ano fora da faixa permitida (2000-2100).');
       }
       const startDate = `${period}-01`;
       const nextMonthYear = month === 12 ? year + 1 : year;
