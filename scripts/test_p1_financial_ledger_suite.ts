@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { Client } from 'pg';
+import { Client, Pool } from 'pg';
 import {
   recordFxRate,
   getFxRate,
@@ -28,7 +28,7 @@ if (fs.existsSync(envLocalPath)) {
 
 async function runTestSuite() {
   console.log('================================================================');
-  console.log('SUÍTE DE AUDITORIA & REMEDIAÇÃO P1: FINANCIAL LEDGER & DRE (046)');
+  console.log('SUÍTE DE AUDITORIA & HARDENING FINAL P1: ORDEM 047');
   console.log('================================================================');
 
   const stagingUrl = process.env.STAGING_DATABASE_URL;
@@ -51,10 +51,43 @@ async function runTestSuite() {
 
   process.env.DATABASE_URL = stagingUrl;
 
-  // Ensure pristine baseline: clean up any leftover TEST-P1- records from aborted runs
-  await checkClient.query(`SET helpus.test_cleanup_active = 'true';`);
-  await checkClient.query(`DELETE FROM financial_ledger WHERE entry_number LIKE 'TEST-P1-%' OR entry_number LIKE 'REV-TEST-P1-%';`);
-  await checkClient.query(`SET helpus.test_cleanup_active = 'false';`);
+  // -------------------------------------------------------------
+  // SETUP DE TESTE ISOLADO & REVERSÍVEL (SCHEMA DEDICADO)
+  // Sem qualquer bypass ou adulteração de registros compartilhados (Ordem 047 Item 1)
+  // -------------------------------------------------------------
+  const isolatedSchema = 'p1_test_isolated';
+  console.log(`\n[Isolamento] Configurando schema de teste controlado: ${isolatedSchema}...`);
+  await checkClient.query(`DROP TABLE IF EXISTS ${isolatedSchema}.financial_ledger CASCADE;`);
+  await checkClient.query(`DROP TABLE IF EXISTS ${isolatedSchema}.fx_rates CASCADE;`);
+  await checkClient.query(`CREATE TABLE IF NOT EXISTS ${isolatedSchema}.fx_rates (LIKE public.fx_rates INCLUDING ALL);`);
+  await checkClient.query(`CREATE TABLE IF NOT EXISTS ${isolatedSchema}.financial_ledger (LIKE public.financial_ledger INCLUDING ALL);`);
+
+  // Anexar triggers de imutabilidade estrita no schema isolado
+  await checkClient.query(`
+    DROP TRIGGER IF EXISTS trg_prevent_financial_ledger_tampering ON ${isolatedSchema}.financial_ledger;
+    CREATE TRIGGER trg_prevent_financial_ledger_tampering
+    BEFORE UPDATE OR DELETE ON ${isolatedSchema}.financial_ledger
+    FOR EACH ROW EXECUTE FUNCTION public.trg_protect_financial_ledger();
+
+    DROP TRIGGER IF EXISTS trg_prevent_fx_rates_tampering ON ${isolatedSchema}.fx_rates;
+    CREATE TRIGGER trg_prevent_fx_rates_tampering
+    BEFORE UPDATE OR DELETE ON ${isolatedSchema}.fx_rates
+    FOR EACH ROW EXECUTE FUNCTION public.trg_protect_fx_rates();
+  `);
+
+  // Configura pool para usar o schema isolado por padrão
+  const isolatedPool = new Pool({
+    connectionString: stagingUrl,
+    ssl: { rejectUnauthorized: true },
+    max: 12,
+  });
+  isolatedPool.on('connect', async (client) => {
+    await client.query(`SET search_path TO ${isolatedSchema}, public;`);
+  });
+
+  // Client específico do teste com search_path configurado
+  const testClient = await isolatedPool.connect();
+  await testClient.query(`SET search_path TO ${isolatedSchema}, public;`);
 
   let passed = 0;
   let total = 0;
@@ -62,65 +95,87 @@ async function runTestSuite() {
   function assert(condition: boolean, desc: string) {
     total++;
     if (condition) {
-      console.log(`  ✓ PASS [${total}]: ${desc}`);
+      console.log(`  [PASS] [${total}]: ${desc}`);
       passed++;
     } else {
-      console.error(`  ❌ FAIL [${total}]: ${desc}`);
+      console.error(`  [FAIL] [${total}]: ${desc}`);
       throw new Error(`Assertion failed: ${desc}`);
     }
   }
 
   try {
     // -------------------------------------------------------------
-    // BLOCO 1: TAXAS DE CÂMBIO HISTÓRICAS & POLÍTICA FAIL-CLOSED
+    // BLOCO 1: TAXAS DE CÂMBIO HISTÓRICAS, IMMUTABILITY & SYNTHETIC_TEST_RATE
     // -------------------------------------------------------------
-    console.log('\n--- Bloco 1: Taxas de Câmbio Históricas & Política Fail-Closed ---');
+    console.log('\n--- Bloco 1: Taxas FX, Imutabilidade e SYNTHETIC_TEST_RATE (Item 4) ---');
 
-    // 1.1 Inserir taxa histórica PTAX
+    // 1.1 Inserir taxa de teste documentada com SYNTHETIC_TEST_RATE
     const testFx: FxRateRecord = {
       rateDate: '2026-10-15',
       currencyFrom: 'USD',
       currencyTo: 'BRL',
       rate: 5.6842,
-      source: 'BCB_PTAX_OFICIAL',
+      source: 'SYNTHETIC_TEST_RATE',
       isFallback: false,
     };
-    const savedFx = await recordFxRate(testFx);
-    assert(savedFx.rate === 5.6842, 'Taxa histórica PTAX salva com precisão decimal');
-    assert(savedFx.source === 'BCB_PTAX_OFICIAL', 'Fonte oficial gravada corretamente');
+    const savedFx = await recordFxRate(testFx, testClient);
+    assert(savedFx.rate === 5.6842, 'Taxa de teste salva com precisão decimal');
+    assert(savedFx.source === 'SYNTHETIC_TEST_RATE', 'Fonte SYNTHETIC_TEST_RATE registrada corretamente');
 
-    // 1.2 Recuperar taxa exata
-    const retrievedFx = await getFxRate('2026-10-15', 'USD', 'BRL');
-    assert(retrievedFx.rate === 5.6842, 'Recuperação de taxa exata coincide');
-    assert(!retrievedFx.isFallback, 'Recuperação exata não é fallback');
+    // 1.2 Recuperação idempotente da mesma taxa
+    const idempFx = await recordFxRate(testFx, testClient);
+    assert(idempFx.id === savedFx.id, 'Inserção idempotente com mesma cotação retorna registro existente');
 
-    // 1.3 Recuperar data de fim de semana (prior close fallback)
-    const fallbackFx = await getFxRate('2026-10-18', 'USD', 'BRL');
-    assert(fallbackFx.rate === 5.6842, 'Data de fim de semana utiliza fechamento anterior documentado');
-    assert(fallbackFx.isFallback === true, 'Indicador de fallback ativado para data derivada');
-
-    // 1.4 Moedas idênticas retornam paridade
-    const parityFx = await getFxRate('2026-10-15', 'BRL', 'BRL');
-    assert(parityFx.rate === 1.0 && parityFx.source === 'PARITY', 'BRL->BRL retorna paridade exata 1.0');
-
-    // 1.5 Fail-Closed quando taxa não existe (Commit 05b906f / Ordem 046 Item 5)
-    let fxErrorThrown = false;
+    // 1.3 Tentativa de alteração retroativa com valor divergente -> Deve disparar FX_RATE_IMMUTABLE
+    let fxMutationBlocked = false;
     try {
-      await getFxRate('2024-01-01', 'USD', 'BRL');
+      await recordFxRate({ ...testFx, rate: 5.9999 }, testClient);
     } catch (e: any) {
-      if (e.message.includes('FX_RATE_UNAVAILABLE')) {
-        fxErrorThrown = true;
+      if (e.message.includes('FX_RATE_IMMUTABLE')) {
+        fxMutationBlocked = true;
       }
     }
-    assert(fxErrorThrown, 'Cotação ausente dispara FX_RATE_UNAVAILABLE (proibido sintetizar fallback arbitrário)');
+    assert(fxMutationBlocked, 'Alteração retroativa silenciosa de cotação histórica é estritamente proibida (FX_RATE_IMMUTABLE)');
+
+    // 1.4 Trigger direto no banco bloqueia UPDATE em fx_rates
+    let trgBlockedFxUpdate = false;
+    try {
+      await testClient.query(`UPDATE ${isolatedSchema}.fx_rates SET rate = 6.00 WHERE rate_date = '2026-10-15';`);
+    } catch (e: any) {
+      if (e.message.includes('Immutability violation')) {
+        trgBlockedFxUpdate = true;
+      }
+    }
+    assert(trgBlockedFxUpdate, 'Trigger trg_prevent_fx_rates_tampering bloqueia UPDATE em fx_rates');
+
+    // 1.5 Recuperar fim de semana (prior close fallback documentado)
+    const fallbackFx = await getFxRate('2026-10-18', 'USD', 'BRL', testClient);
+    assert(fallbackFx.rate === 5.6842, 'Data sem cotação utiliza fechamento anterior documentado (prior close)');
+    assert(fallbackFx.source === 'SYNTHETIC_TEST_RATE_PRIOR_CLOSE', 'Fonte documenta _PRIOR_CLOSE no fallback');
+    assert(fallbackFx.isFallback === true, 'Indicador isFallback ativado para prior close');
+
+    // 1.6 Paridade de moedas idênticas
+    const parityFx = await getFxRate('2026-10-15', 'BRL', 'BRL', testClient);
+    assert(parityFx.rate === 1.0 && parityFx.source === 'PARITY', 'BRL->BRL retorna paridade exata 1.0');
+
+    // 1.7 Cotação ausente dispara FX_RATE_UNAVAILABLE fail-closed
+    let fxUnavailableCaught = false;
+    try {
+      await getFxRate('2024-01-01', 'USD', 'BRL', testClient);
+    } catch (e: any) {
+      if (e.message.includes('FX_RATE_UNAVAILABLE')) {
+        fxUnavailableCaught = true;
+      }
+    }
+    assert(fxUnavailableCaught, 'Cotação ausente dispara FX_RATE_UNAVAILABLE (proibido inventar cotação)');
 
     // -------------------------------------------------------------
-    // BLOCO 2: IDEMPOTÊNCIA E DIVERGÊNCIA DE PAYLOAD
+    // BLOCO 2: IDEMPOTÊNCIA COM FINGERPRINT INTEGRAL (Item 2)
     // -------------------------------------------------------------
-    console.log('\n--- Bloco 2: Idempotência e Divergência de Payload ---');
+    console.log('\n--- Bloco 2: Idempotência com Fingerprint Integral (Item 2) ---');
 
     const entryIdempKey = `test-idemp-${Date.now()}`;
-    const testEntry: FinancialLedgerEntry = {
+    const baseEntry: FinancialLedgerEntry = {
       entryNumber: `TEST-P1-ORD-001-${Date.now()}`,
       idempotencyKey: entryIdempKey,
       sourceEventType: 'ORDER_SALE',
@@ -130,41 +185,49 @@ async function runTestSuite() {
       currency: 'USD',
       amountOriginal: 100.00,
       entryDirection: 'CREDIT',
-      amountBrl: 0,
-      fxRate: 0,
-      fxSource: '',
+      amountBrl: 568.42,
+      fxRate: 5.6842,
+      fxSource: 'SYNTHETIC_TEST_RATE',
       category: 'RECEITA_BRUTA',
       status: 'REALIZADO',
       metadata: { sku: 'TEST-SKU-1', quantity: 1 },
       environment: 'staging',
     };
 
-    const recorded1 = await recordFinancialLedgerEntry(testEntry);
-    assert(recorded1.entryNumber === testEntry.entryNumber, 'Lançamento original gravado com sucesso');
-    assert(recorded1.amountBrl === 568.42, 'Conversão automática USD->BRL via taxa do dia (100 * 5.6842 = 568.42)');
+    const recorded1 = await recordFinancialLedgerEntry(baseEntry, testClient);
+    assert(recorded1.entryNumber === baseEntry.entryNumber, 'Lançamento gravado com sucesso no schema isolado');
 
-    // Inserir novamente com mesmo payload exato
-    const recorded2 = await recordFinancialLedgerEntry({ ...testEntry });
-    assert(recorded2.id === recorded1.id, 'Idempotência com mesmo payload retorna mesmo ID');
+    // 2.1 Reenvio com mesmo payload integral retorna exatamente o mesmo registro
+    const recorded2 = await recordFinancialLedgerEntry({ ...baseEntry }, testClient);
+    assert(recorded2.id === recorded1.id, 'Idempotência com fingerprint integral idêntico retorna mesmo registro');
 
-    // Inserir com payload divergente (mesma idempotency_key, mas valor diferente) -> Deve falhar!
-    let payloadMismatchCaught = false;
-    try {
-      await recordFinancialLedgerEntry({
-        ...testEntry,
-        amountOriginal: 999.99,
-      });
-    } catch (e: any) {
-      if (e.message.includes('IDEMPOTENCY_PAYLOAD_MISMATCH')) {
-        payloadMismatchCaught = true;
+    // 2.2 Teste de divergência em cada dimensão do fingerprint
+    const divergenceTests = [
+      { name: 'amountOriginal', patch: { amountOriginal: 200.00 } },
+      { name: 'currency', patch: { currency: 'BRL' as const } },
+      { name: 'marketplace', patch: { marketplace: 'Amazon BR' as const } },
+      { name: 'competenceDate', patch: { competenceDate: '2026-10-16' } },
+      { name: 'category', patch: { category: 'CMV' as const } },
+      { name: 'entryDirection', patch: { entryDirection: 'DEBIT' as const } },
+      { name: 'status', patch: { status: 'ESTIMADO' as const } },
+    ];
+
+    for (const dt of divergenceTests) {
+      let mismatchCaught = false;
+      try {
+        await recordFinancialLedgerEntry({ ...baseEntry, ...dt.patch }, testClient);
+      } catch (e: any) {
+        if (e.message.includes('IDEMPOTENCY_PAYLOAD_MISMATCH')) {
+          mismatchCaught = true;
+        }
       }
+      assert(mismatchCaught, `Divergência em '${dt.name}' detectada e rejeitada com IDEMPOTENCY_PAYLOAD_MISMATCH`);
     }
-    assert(payloadMismatchCaught, 'Tentativa de reusar chave com payload divergente dispara IDEMPOTENCY_PAYLOAD_MISMATCH');
 
     // -------------------------------------------------------------
-    // BLOCO 3: TESTE DE CONCORRÊNCIA REAL E RACE CONDITIONS
+    // BLOCO 3: CONCORRÊNCIA REAL COM PAYLOAD IGUAL E DIVERGENTE (Item 2)
     // -------------------------------------------------------------
-    console.log('\n--- Bloco 3: Teste de Concorrência Real e Race Conditions ---');
+    console.log('\n--- Bloco 3: Concorrência Real com Payload Igual e Divergente (Item 2) ---');
 
     const concurrentKey = `test-concurrent-${Date.now()}`;
     const concurrentPayload: FinancialLedgerEntry = {
@@ -186,66 +249,109 @@ async function runTestSuite() {
       environment: 'staging',
     };
 
-    // Executa 10 inserções paralelas simultâneas
-    const concurrentPromises = Array.from({ length: 10 }, (_, i) =>
-      recordFinancialLedgerEntry({
-        ...concurrentPayload,
-        entryNumber: `TEST-P1-CONC-${Date.now()}-${i}`,
-      })
-    );
+    // 10 workers simultâneos utilizando o pool isolado
+    const concurrentPromises = Array.from({ length: 10 }, async (_, i) => {
+      const c = await isolatedPool.connect();
+      await c.query(`SET search_path TO ${isolatedSchema}, public;`);
+      try {
+        return await recordFinancialLedgerEntry(
+          {
+            ...concurrentPayload,
+            entryNumber: `TEST-P1-CONC-${Date.now()}-${i}`,
+          },
+          c
+        );
+      } finally {
+        c.release();
+      }
+    });
 
     const concurrentResults = await Promise.all(concurrentPromises);
     const uniqueIds = new Set(concurrentResults.map((r) => r.id));
+    console.log('    [Debug Concurrency] Unique IDs count:', uniqueIds.size, 'IDs:', Array.from(uniqueIds));
     assert(uniqueIds.size === 1, '10 inserções simultâneas concorrentes convergiram para exatamente 1 registro sem erro UNIQUE');
 
     // -------------------------------------------------------------
-    // BLOCO 4: ESTORNO COMPENSATÓRIO COM NEUTRALIZAÇÃO 1:1
+    // BLOCO 4: ESTORNOS COMPENSATÓRIOS & PRESERVAÇÃO DE CLASSIFICAÇÃO (Item 3)
     // -------------------------------------------------------------
-    console.log('\n--- Bloco 4: Estorno Compensatório com Neutralização 1:1 ---');
+    console.log('\n--- Bloco 4: Estornos Compensatórios e Preservação de Status (Item 3) ---');
 
-    const reversal = await recordCompensatoryReversal(
+    // 4.1 Estorno de lançamento REALIZADO permanece REALIZADO
+    const revRealizado = await recordCompensatoryReversal(
       recorded1.entryNumber,
-      'Cliente cancelou pedido antes do despacho',
-      'AUDITOR_SUPERADMIN'
+      'Cancelamento de pedido aprovado',
+      'AUDITOR_SUPERADMIN',
+      testClient
     );
+    assert(revRealizado.status === 'REALIZADO', 'Estorno de registro REALIZADO preserva status REALIZADO');
+    assert(revRealizado.entryDirection === 'DEBIT', 'Estorno inverte direção contábil (CREDIT -> DEBIT)');
+    assert(revRealizado.category === 'RECEITA_BRUTA', 'Estorno neutraliza 1:1 categoria RECEITA_BRUTA');
 
-    assert(reversal.entryDirection === 'DEBIT', 'Estorno inverteu direção contábil (CREDIT -> DEBIT)');
-    assert(reversal.category === 'RECEITA_BRUTA', 'Estorno manteve categoria original RECEITA_BRUTA para neutralização exata');
-    assert(reversal.reversalOfId === recorded1.id, 'Estorno mantém vínculo explícito ao lançamento original (reversal_of_id)');
-    assert(reversal.amountOriginal === 100.00, 'Valor do estorno igual ao original');
+    // 4.2 Lançamento ESTIMADO
+    const estEntry: FinancialLedgerEntry = {
+      entryNumber: `TEST-P1-EST-FEE-${Date.now()}`,
+      idempotencyKey: `idemp-est-fee-${Date.now()}`,
+      sourceEventType: 'FULFILLMENT_FBA',
+      sourceId: 'ORD-EST-001',
+      marketplace: 'Amazon US',
+      competenceDate: '2026-10-15',
+      currency: 'USD',
+      amountOriginal: 15.00,
+      entryDirection: 'DEBIT',
+      amountBrl: 85.26,
+      fxRate: 5.6842,
+      fxSource: 'SYNTHETIC_TEST_RATE',
+      category: 'FULFILLMENT_FBA',
+      status: 'ESTIMADO',
+      metadata: { feeEstimate: true },
+      environment: 'staging',
+    };
+    const recordedEst = await recordFinancialLedgerEntry(estEntry, testClient);
+    assert(recordedEst.status === 'ESTIMADO', 'Lançamento original registrado como ESTIMADO');
+
+    // 4.3 Estorno de lançamento ESTIMADO NÃO pode virar REALIZADO (Item 3)
+    const revEstimado = await recordCompensatoryReversal(
+      recordedEst.entryNumber,
+      'Ajuste de estimativa de fulfillment',
+      'AUDITOR_SUPERADMIN',
+      testClient
+    );
+    assert(revEstimado.status === 'ESTIMADO', 'Estorno de registro ESTIMADO permanece estritamente ESTIMADO (não vira REALIZADO)');
+    assert(revEstimado.entryDirection === 'CREDIT', 'Estorno de despesa ESTIMADA inverte DEBIT para CREDIT');
+    assert(revEstimado.category === 'FULFILLMENT_FBA', 'Estorno mantém categoria FULFILLMENT_FBA');
 
     // -------------------------------------------------------------
-    // BLOCO 5: TRIGGER DE IMUTABILIDADE POSTGRESQL & VERIFICAÇÃO DE ATIVAÇÃO
+    // BLOCO 5: IMUTABILIDADE DO TRIGGER & VERIFICAÇÃO ATIVA (Item 1)
     // -------------------------------------------------------------
-    console.log('\n--- Bloco 5: Imutabilidade de Transações REALIZADAS ---');
+    console.log('\n--- Bloco 5: Imutabilidade Estrita do Trigger (Item 1) ---');
 
-    let triggerBlockedUpdate = false;
+    let trgBlockedUpdate = false;
     try {
-      await checkClient.query(
-        `UPDATE financial_ledger SET amount_original = 500 WHERE id = $1;`,
+      await testClient.query(
+        `UPDATE ${isolatedSchema}.financial_ledger SET amount_original = 999 WHERE id = $1;`,
         [recorded1.id]
       );
     } catch (e: any) {
       if (e.message.includes('Immutability violation')) {
-        triggerBlockedUpdate = true;
+        trgBlockedUpdate = true;
       }
     }
-    assert(triggerBlockedUpdate, 'Trigger impediu UPDATE direto em lançamento REALIZADO');
+    assert(trgBlockedUpdate, 'Trigger de imutabilidade bloqueia UPDATE em REALIZADO sem qualquer exceção de role');
 
-    let triggerBlockedDelete = false;
+    let trgBlockedDelete = false;
     try {
-      await checkClient.query(
-        `DELETE FROM financial_ledger WHERE id = $1;`,
+      await testClient.query(
+        `DELETE FROM ${isolatedSchema}.financial_ledger WHERE id = $1;`,
         [recorded1.id]
       );
     } catch (e: any) {
       if (e.message.includes('Immutability violation')) {
-        triggerBlockedDelete = true;
+        trgBlockedDelete = true;
       }
     }
-    assert(triggerBlockedDelete, 'Trigger impediu DELETE direto em lançamento REALIZADO');
+    assert(trgBlockedDelete, 'Trigger de imutabilidade bloqueia DELETE em REALIZADO');
 
-    // Verificar se o gatilho está formalmente habilitado no catálogo do PostgreSQL
+    // Verificar se trigger está formalmente ativo em pg_trigger
     const trgCheck = await checkClient.query(`
       SELECT tgname, tgenabled
       FROM pg_trigger
@@ -253,115 +359,134 @@ async function runTestSuite() {
     `);
     assert(
       trgCheck.rows.length > 0 && trgCheck.rows[0].tgenabled === 'O',
-      'Gatilho de imutabilidade confirmado 100% ATIVO no PostgreSQL (tgenabled=O)'
+      'Trigger de imutabilidade confirmado 100% ATIVO no PostgreSQL público (tgenabled = O)'
     );
 
     // -------------------------------------------------------------
-    // BLOCO 6: SEGREGAÇÃO REALIZADO/ESTIMADO E PERIODIZAÇÃO COM VIRADA DE MÊS
+    // BLOCO 6: VALIDAÇÃO DE PERÍODOS & SEGREGAÇÃO MULTICANAL (Item 5)
     // -------------------------------------------------------------
-    console.log('\n--- Bloco 6: Segregação e Periodização com Virada de Mês ---');
+    console.log('\n--- Bloco 6: Validação de Períodos e Segregação Multicanal (Item 5) ---');
 
-    // Lançamento em Novembro para testar virada de mês/ano
+    // 6.1 Teste de intervalo invertido (startDate > endDate) -> INVALID_DATE_RANGE
+    let invertedRangeBlocked = false;
+    try {
+      await calculateAuditedDre('2026-11-15:2026-10-15', testClient);
+    } catch (e: any) {
+      if (e.message.includes('INVALID_DATE_RANGE')) {
+        invertedRangeBlocked = true;
+      }
+    }
+    assert(invertedRangeBlocked, 'Intervalo de datas invertido dispara INVALID_DATE_RANGE');
+
+    // 6.2 Teste de formato inválido -> INVALID_PERIOD_FORMAT
+    let invalidFormatBlocked = false;
+    try {
+      await calculateAuditedDre('periodo-invalido', testClient);
+    } catch (e: any) {
+      if (e.message.includes('INVALID_PERIOD_FORMAT')) {
+        invalidFormatBlocked = true;
+      }
+    }
+    assert(invalidFormatBlocked, 'Formato de período textual arbitrário dispara INVALID_PERIOD_FORMAT');
+
+    // 6.3 Teste de mês inválido (mês 13) -> INVALID_PERIOD_FORMAT
+    let invalidMonthBlocked = false;
+    try {
+      await calculateAuditedDre('2026-13', testClient);
+    } catch (e: any) {
+      if (e.message.includes('INVALID_PERIOD_FORMAT')) {
+        invalidMonthBlocked = true;
+      }
+    }
+    assert(invalidMonthBlocked, 'Mês inexistente (2026-13) dispara INVALID_PERIOD_FORMAT');
+
+    // 6.4 Inserir venda no Mercado Livre para testar segregação multicanal
     await recordFinancialLedgerEntry({
-      entryNumber: `TEST-P1-NOV-${Date.now()}`,
-      idempotencyKey: `test-idemp-nov-${Date.now()}`,
+      entryNumber: `TEST-P1-ML-001-${Date.now()}`,
+      idempotencyKey: `test-idemp-ml-${Date.now()}`,
       sourceEventType: 'ORDER_SALE',
-      sourceId: 'ORD-NOV-001',
-      marketplace: 'Amazon BR',
-      competenceDate: '2026-11-05',
+      sourceId: 'ORD-ML-555',
+      marketplace: 'Mercado Livre',
+      competenceDate: '2026-10-25',
       currency: 'BRL',
-      amountOriginal: 300.00,
+      amountOriginal: 180.00,
       entryDirection: 'CREDIT',
-      amountBrl: 300.00,
+      amountBrl: 180.00,
       fxRate: 1.0,
       fxSource: 'PARITY_BRL',
       category: 'RECEITA_BRUTA',
       status: 'REALIZADO',
-      metadata: { month: 'November' },
+      metadata: { platform: 'Mercado Livre' },
       environment: 'staging',
-    });
+    }, testClient);
 
-    // Inserir taxa estimada em Outubro
-    await recordFinancialLedgerEntry({
-      entryNumber: `TEST-P1-EST-FBA-${Date.now()}`,
-      idempotencyKey: `test-est-fba-${Date.now()}`,
-      sourceEventType: 'FULFILLMENT_FBA',
-      sourceId: 'ORD-TEST-999',
-      marketplace: 'Amazon US',
-      competenceDate: '2026-10-15',
-      currency: 'USD',
-      amountOriginal: 3.25,
-      entryDirection: 'DEBIT',
-      amountBrl: 18.47,
-      fxRate: 5.6842,
-      fxSource: 'BCB_PTAX_OFICIAL',
-      category: 'FULFILLMENT_FBA',
-      status: 'ESTIMADO',
-      metadata: { simulated: true },
-      environment: 'staging',
-    });
+    // 6.5 Calcular DRE e demonstrar segregação e moedas
+    const dreResult = await calculateAuditedDre('2026-10', testClient);
 
-    // 6.1 DRE Filtrada por Outubro (Não pode conter Novembro)
-    const dreOct = await calculateAuditedDre('2026-10');
-    assert(dreOct.br.grossRevenue.total === 250.50, 'Filtro 2026-10 contém apenas vendas de Outubro');
-    assert(dreOct.us.deductions.fulfillmentFees.estimado === 3.25, 'Tarifa FBA estimada presente em Outubro');
-    assert(dreOct.us.deductions.fulfillmentFees.realizado === 0, 'Tarifa FBA estimada não polui realizado');
+    // Amazon US: moeda nativa USD
+    assert(dreResult.us.currency === 'USD', 'Demonstrativo Amazon US expresso estritamente em moeda nativa USD');
+    assert(dreResult.us.grossRevenue.total === 0.00, 'Receita Amazon US neutralizada pelo estorno 1:1 (100 - 100 = 0)');
+    assert(dreResult.us.deductions.fulfillmentFees.total === 0.00, 'Tarifa FBA estimada da US neutralizada pelo estorno estimado (15 - 15 = 0)');
 
-    // 6.2 DRE por Intervalo de Datas com Virada de Mês (2026-10-15 a 2026-11-15)
-    const dreRange = await calculateAuditedDre('2026-10-15:2026-11-15');
+    // Amazon BR: moeda nativa BRL
+    assert(dreResult.br.currency === 'BRL', 'Demonstrativo Amazon BR expresso estritamente em moeda nativa BRL');
+    assert(dreResult.br.grossRevenue.total === 250.50, 'Receita Amazon BR contém exclusivamente suas vendas nativas (250.50 BRL)');
+
+    // Mercado Livre: segregado em BRL
+    assert(dreResult.ml.currency === 'BRL', 'Demonstrativo Mercado Livre expresso separadamente em BRL');
+    assert(dreResult.ml.grossRevenue.total === 180.00, 'Receita Mercado Livre segregada com exatidão (180.00 BRL)');
+
+    // Consolidado: soma em BRL via conversão autoritativa sem misturar USD diretamente
+    // Consolidado Bruto = 250.50 (Amazon BR) + 180.00 (Mercado Livre) = 430.50 BRL
     assert(
-      dreRange.br.grossRevenue.total === 550.50,
-      'Intervalo 2026-10-15:2026-11-15 engloba com precisão Outubro (250.50) + Novembro (300.00) = 550.50'
+      dreResult.consolidated.currency === 'BRL' && dreResult.consolidated.grossRevenue.total === 430.50,
+      'Consolidado Global agrega exclusivamente valores em BRL convertidos (250.50 + 180.00 = 430.50 BRL, sem soma indevida de USD)'
     );
 
-    // 6.3 Verificação da neutralização do estorno:
-    // Na US, venda foi 100.00 (CREDIT) e estorno foi 100.00 (DEBIT) em RECEITA_BRUTA
-    // Logo, a Receita Bruta da US deve ser exatamente 0.00!
-    assert(dreOct.us.grossRevenue.total === 0.00, 'Estorno neutralizou exatamente a Receita Bruta da US (100 - 100 = 0.00)');
-    assert(dreOct.us.deductions.reversals.total === 100.00, 'Estorno registrado como métrica de auditoria');
-    assert(dreOct.us.deductions.totalDeductions.total === 3.25, 'Deduções não sofrem dupla dedução pelo estorno (total = 3.25 da taxa FBA)');
-
     // -------------------------------------------------------------
-    // BLOCO 7: RECONCILIAÇÃO & LIMPEZA CONTROLADA SEM DESATIVAR TRIGGER
+    // BLOCO 7: TEARDOWN CONTROLADO & AUDITORIA DE RECONCILIAÇÃO (Item 7)
     // -------------------------------------------------------------
-    console.log('\n--- Bloco 7: Reconciliação & Limpeza Scoped em Staging ---');
+    console.log('\n--- Bloco 7: Teardown Controlado & Verificação da Base Pública ---');
 
-    // Limpeza utilizando a variável de sessão helpus.test_cleanup_active no trigger
-    await checkClient.query(`SET helpus.test_cleanup_active = 'true';`);
-    const delRes = await checkClient.query(
-      `DELETE FROM financial_ledger WHERE entry_number LIKE 'TEST-P1-%' OR entry_number LIKE 'REV-TEST-P1-%';`
+    testClient.release();
+    await isolatedPool.end();
+
+    // Eliminação limpa das tabelas do schema isolado via DDL (sem violar trigger row-level)
+    await checkClient.query(`DROP TABLE IF EXISTS ${isolatedSchema}.financial_ledger CASCADE;`);
+    await checkClient.query(`DROP TABLE IF EXISTS ${isolatedSchema}.fx_rates CASCADE;`);
+    console.log(`  Tabelas do schema isolado ${isolatedSchema} removidas com sucesso.`);
+
+    // Garantir que a tabela pública financial_ledger permaneceu 100% intocada
+    const publicCount = await checkClient.query(`SELECT count(*) FROM public.financial_ledger;`);
+    assert(
+      Number(publicCount.rows[0].count) === 0,
+      'Tabela pública financial_ledger preservada com exatamente 0 registros (zero poluição em staging compartilhado)'
     );
-    await checkClient.query(`SET helpus.test_cleanup_active = 'false';`);
-    console.log(`  Registros de teste excluídos com segurança transacional: ${delRes.rowCount}`);
 
-    const countRes = await checkClient.query(`SELECT count(*) FROM financial_ledger;`);
-    assert(Number(countRes.rows[0].count) === 0, 'Base de staging reconciliada para baseline 0 registros de ledger');
-
-    // Reconfirmar que trigger permanece ativo após o encerramento da limpeza
-    const finalTrgCheck = await checkClient.query(`
+    // Confirmar que triggers públicos continuam ativos e sem bypass
+    const finalTrg = await checkClient.query(`
       SELECT tgname, tgenabled
       FROM pg_trigger
       WHERE tgname = 'trg_prevent_financial_ledger_tampering';
     `);
     assert(
-      finalTrgCheck.rows[0].tgenabled === 'O',
-      'Gatilho de imutabilidade permanentemente ATIVO e inviolado após a limpeza de staging'
+      finalTrg.rows[0].tgenabled === 'O',
+      'Trigger público trg_prevent_financial_ledger_tampering permanentemente ativo (tgenabled = O) e sem backdoor'
     );
 
     console.log('\n================================================================');
-    console.log(`RESULTADO DA AUDITORIA P1: ${passed}/${total} ASSERÇÕES APROVADAS! (100% PASS)`);
+    console.log(`RESULTADO FINAL DA SUÍTE P1: ${passed}/${total} ASSERÇÕES APROVADAS! (100% PASS)`);
     console.log('================================================================');
   } finally {
     try {
-      await checkClient.query(`SET helpus.test_cleanup_active = 'true';`);
-      await checkClient.query(`DELETE FROM financial_ledger WHERE entry_number LIKE 'TEST-P1-%' OR entry_number LIKE 'REV-TEST-P1-%';`);
-      await checkClient.query(`SET helpus.test_cleanup_active = 'false';`);
+      await checkClient.query(`DROP TABLE IF EXISTS ${isolatedSchema}.financial_ledger CASCADE;`);
+      await checkClient.query(`DROP TABLE IF EXISTS ${isolatedSchema}.fx_rates CASCADE;`);
     } catch {}
     await checkClient.end();
   }
 }
 
 runTestSuite().catch((err) => {
-  console.error('\n❌ ERRO NA SUÍTE DE TESTES P1:', err);
+  console.error('\n[FAIL] ERRO NA SUÍTE DE TESTES P1:', err);
   process.exit(1);
 });

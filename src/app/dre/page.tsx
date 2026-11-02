@@ -21,7 +21,7 @@ import {
 
 export default function DrePage() {
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'CONSOLIDATED' | 'US' | 'BR'>('CONSOLIDATED');
+  const [activeTab, setActiveTab] = useState<'CONSOLIDATED' | 'US' | 'BR' | 'ML'>('CONSOLIDATED');
   const [period, setPeriod] = useState<string>('2026-10');
   const [apiKey, setApiKey] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -29,6 +29,7 @@ export default function DrePage() {
   const [statements, setStatements] = useState<{
     us: AuditedDreStatement;
     br: AuditedDreStatement;
+    ml: AuditedDreStatement;
     consolidated: AuditedDreStatement;
   } | null>(null);
 
@@ -95,7 +96,9 @@ export default function DrePage() {
       ? statements.consolidated
       : activeTab === 'US'
       ? statements.us
-      : statements.br
+      : activeTab === 'BR'
+      ? statements.br
+      : statements.ml
     : null;
 
   const currencySymbol = activeTab === 'US' ? '$' : 'R$';
@@ -270,7 +273,19 @@ export default function DrePage() {
           }`}
         >
           <span>🇧🇷</span>
-          <span>Brasil Multicanal (BRL)</span>
+          <span>Amazon Brasil (BRL)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('ML')}
+          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition ${
+            activeTab === 'ML'
+              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+          }`}
+        >
+          <span>📦</span>
+          <span>Mercado Livre (BRL)</span>
         </button>
       </div>
 

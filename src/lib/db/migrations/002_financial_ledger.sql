@@ -89,17 +89,10 @@ CREATE INDEX IF NOT EXISTS idx_financial_ledger_status ON financial_ledger(statu
 CREATE INDEX IF NOT EXISTS idx_financial_ledger_source ON financial_ledger(source_event_type, source_id);
 CREATE INDEX IF NOT EXISTS idx_financial_ledger_reversal ON financial_ledger(reversal_of_id);
 
--- 3. Immutability Trigger for Realized Financial Entries
+-- 3. Immutability Trigger for Realized Financial Entries (Strict Append-Only)
 CREATE OR REPLACE FUNCTION trg_protect_financial_ledger()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Safe scoped cleanup: only allows removal of explicitly tagged test records during an active test session
-    IF current_setting('helpus.test_cleanup_active', true) = 'true' THEN
-        IF OLD.entry_number LIKE 'TEST-P1-%' OR OLD.entry_number LIKE 'REV-TEST-P1-%' THEN
-            RETURN OLD;
-        END IF;
-    END IF;
-
     IF OLD.status = 'REALIZADO' THEN
         RAISE EXCEPTION 'Immutability violation: Cannot modify or delete REALIZADO financial ledger entry %. Reversals must be made through a COMPENSATION_REVERSAL entry.', OLD.entry_number;
     END IF;
@@ -111,3 +104,16 @@ DROP TRIGGER IF EXISTS trg_prevent_financial_ledger_tampering ON financial_ledge
 CREATE TRIGGER trg_prevent_financial_ledger_tampering
 BEFORE UPDATE OR DELETE ON financial_ledger
 FOR EACH ROW EXECUTE FUNCTION trg_protect_financial_ledger();
+
+-- 4. Immutability Trigger for Historical FX Rates (Prohibits Retroactive Tampering)
+CREATE OR REPLACE FUNCTION trg_protect_fx_rates()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'Immutability violation: Historical fx_rates entries cannot be modified or deleted (% to % on %).', OLD.currency_from, OLD.currency_to, OLD.rate_date;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_prevent_fx_rates_tampering ON fx_rates;
+CREATE TRIGGER trg_prevent_fx_rates_tampering
+BEFORE UPDATE OR DELETE ON fx_rates
+FOR EACH ROW EXECUTE FUNCTION trg_protect_fx_rates();

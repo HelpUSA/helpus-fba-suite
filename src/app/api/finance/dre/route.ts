@@ -56,6 +56,18 @@ export async function GET(request: NextRequest) {
       statements: dreResult,
     });
   } catch (error: any) {
+    if (
+      error.message?.includes('INVALID_PERIOD_FORMAT') ||
+      error.message?.includes('INVALID_DATE_RANGE')
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message,
+        },
+        { status: 400 }
+      );
+    }
     console.error('[API DRE] Erro ao calcular DRE auditada:', error);
     return NextResponse.json(
       {

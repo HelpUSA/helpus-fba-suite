@@ -81,6 +81,7 @@ async function runSecurityTests() {
   assert(resDev.status === 200, 'Acesso autenticado de operador em staging/dev retorna HTTP 200 OK');
   assert(dataDev.success === true, 'DRE calculada com sucesso');
   assert(dataDev.statements && dataDev.statements.consolidated, 'Estrutura consolidada presente no retorno');
+  assert(dataDev.statements && dataDev.statements.ml, 'Demonstrativo Mercado Livre presente no retorno');
 
   // Test 4: Reject client-supplied PTAX parameter (Commit bf07968 / Order 046 Item 7)
   const reqPtaxRejection = new NextRequest('http://localhost:3000/api/finance/dre?period=2026-10&ptax=6.15', {
@@ -92,6 +93,28 @@ async function runSecurityTests() {
   const dataPtax = await resPtax.json();
   assert(resPtax.status === 400, 'Requisição com PTAX customizada é rejeitada com HTTP 400 Bad Request');
   assert(dataPtax.error === 'PTAX customizada não permitida na DRE auditada.', 'Mensagem de bloqueio de PTAX customizada confirmada');
+
+  // Test 5: Reject inverted date range (Order 047 Item 5) -> 400 Bad Request
+  const reqInverted = new NextRequest('http://localhost:3000/api/finance/dre?period=2026-11-15:2026-10-15', {
+    headers: {
+      'x-api-key': 'staging-operator-token-valid-12345',
+    },
+  });
+  const resInverted = await getDreRoute(reqInverted);
+  const dataInverted = await resInverted.json();
+  assert(resInverted.status === 400, 'Intervalo de datas invertido retorna HTTP 400 Bad Request');
+  assert(dataInverted.error.includes('INVALID_DATE_RANGE'), 'Erro explícito INVALID_DATE_RANGE retornado');
+
+  // Test 6: Reject invalid month (Order 047 Item 5) -> 400 Bad Request
+  const reqInvalidMonth = new NextRequest('http://localhost:3000/api/finance/dre?period=2026-13', {
+    headers: {
+      'x-api-key': 'staging-operator-token-valid-12345',
+    },
+  });
+  const resInvalidMonth = await getDreRoute(reqInvalidMonth);
+  const dataInvalidMonth = await resInvalidMonth.json();
+  assert(resInvalidMonth.status === 400, 'Mês inválido retorna HTTP 400 Bad Request');
+  assert(dataInvalidMonth.error.includes('INVALID_PERIOD_FORMAT'), 'Erro explícito INVALID_PERIOD_FORMAT retornado');
 
   console.log('\n================================================================');
   console.log(`RESULTADO DA SEGURANÇA P1: ${passed}/${total} TESTES APROVADOS! (100% PASS)`);

@@ -805,25 +805,79 @@ export async function recordFxRate(
   client?: PoolClient
 ): Promise<FxRateRecord> {
   const runner = async (c: PoolClient) => {
+    // 1. Check if rate already exists for this date and currency pair
+    const existingRes = await c.query(
+      `SELECT * FROM fx_rates WHERE rate_date = $1 AND currency_from = $2 AND currency_to = $3;`,
+      [fx.rateDate, fx.currencyFrom, fx.currencyTo]
+    );
+    if (existingRes.rows.length > 0) {
+      const existing = existingRes.rows[0];
+      const rateDiff = Math.abs(Number(existing.rate) - fx.rate);
+      if (rateDiff < 0.0001 && existing.source === fx.source && existing.is_fallback === fx.isFallback) {
+        return {
+          id: existing.id,
+          rateDate: existing.rate_date instanceof Date ? existing.rate_date.toISOString().split('T')[0] : String(existing.rate_date),
+          currencyFrom: existing.currency_from,
+          currencyTo: existing.currency_to,
+          rate: Number(existing.rate),
+          source: existing.source,
+          isFallback: existing.is_fallback,
+          createdAt: existing.created_at,
+        };
+      }
+      throw new Error(
+        `FX_RATE_IMMUTABLE: Cannot retroactively modify historical exchange rate for ${fx.currencyFrom}->${fx.currencyTo} on ${fx.rateDate}.`
+      );
+    }
+
     const res = await c.query(
       `INSERT INTO fx_rates (rate_date, currency_from, currency_to, rate, source, is_fallback)
        VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (rate_date, currency_from, currency_to)
-       DO UPDATE SET rate = EXCLUDED.rate, source = EXCLUDED.source, is_fallback = EXCLUDED.is_fallback
+       ON CONFLICT (rate_date, currency_from, currency_to) DO NOTHING
        RETURNING id, rate_date, currency_from, currency_to, rate, source, is_fallback, created_at;`,
       [fx.rateDate, fx.currencyFrom, fx.currencyTo, fx.rate, fx.source, fx.isFallback]
     );
-    const row = res.rows[0];
-    return {
-      id: row.id,
-      rateDate: row.rate_date instanceof Date ? row.rate_date.toISOString().split('T')[0] : String(row.rate_date),
-      currencyFrom: row.currency_from,
-      currencyTo: row.currency_to,
-      rate: Number(row.rate),
-      source: row.source,
-      isFallback: row.is_fallback,
-      createdAt: row.created_at,
-    };
+
+    if (res.rows.length > 0) {
+      const row = res.rows[0];
+      return {
+        id: row.id,
+        rateDate: row.rate_date instanceof Date ? row.rate_date.toISOString().split('T')[0] : String(row.rate_date),
+        currencyFrom: row.currency_from,
+        currencyTo: row.currency_to,
+        rate: Number(row.rate),
+        source: row.source,
+        isFallback: row.is_fallback,
+        createdAt: row.created_at,
+      };
+    }
+
+    // Race condition resolution
+    const confRes = await c.query(
+      `SELECT * FROM fx_rates WHERE rate_date = $1 AND currency_from = $2 AND currency_to = $3;`,
+      [fx.rateDate, fx.currencyFrom, fx.currencyTo]
+    );
+    if (confRes.rows.length > 0) {
+      const row = confRes.rows[0];
+      const rateDiff = Math.abs(Number(row.rate) - fx.rate);
+      if (rateDiff < 0.0001 && row.source === fx.source && row.is_fallback === fx.isFallback) {
+        return {
+          id: row.id,
+          rateDate: row.rate_date instanceof Date ? row.rate_date.toISOString().split('T')[0] : String(row.rate_date),
+          currencyFrom: row.currency_from,
+          currencyTo: row.currency_to,
+          rate: Number(row.rate),
+          source: row.source,
+          isFallback: row.is_fallback,
+          createdAt: row.created_at,
+        };
+      }
+      throw new Error(
+        `FX_RATE_IMMUTABLE: Cannot retroactively modify historical exchange rate for ${fx.currencyFrom}->${fx.currencyTo} on ${fx.rateDate}.`
+      );
+    }
+
+    throw new Error(`Failed to record FX rate for ${fx.rateDate}`);
   };
 
   if (client) return runner(client);
@@ -876,25 +930,48 @@ export async function recordFinancialLedgerEntry(
   client?: PoolClient
 ): Promise<FinancialLedgerEntry> {
   const runner = async (c: PoolClient) => {
-    // 1. Idempotency Check with Payload Divergence Verification
+    // Helper: Integral fingerprint validation for full payload integrity
+    const validateFingerprint = (existing: any, _targetFxRate?: number) => {
+      const diffs: string[] = [];
+      if (existing.currency !== entry.currency) diffs.push(`currency (${existing.currency} vs ${entry.currency})`);
+      if (Math.abs(Number(existing.amount_original) - entry.amountOriginal) > 0.001) {
+        diffs.push(`amountOriginal (${existing.amount_original} vs ${entry.amountOriginal})`);
+      }
+      if (existing.marketplace !== entry.marketplace) diffs.push(`marketplace (${existing.marketplace} vs ${entry.marketplace})`);
+      const existDate = existing.competence_date instanceof Date
+        ? existing.competence_date.toISOString().split('T')[0]
+        : String(existing.competence_date).split('T')[0];
+      if (existDate !== entry.competenceDate) diffs.push(`competenceDate (${existDate} vs ${entry.competenceDate})`);
+      if (existing.category !== entry.category) diffs.push(`category (${existing.category} vs ${entry.category})`);
+      if (existing.entry_direction !== entry.entryDirection) diffs.push(`entryDirection (${existing.entry_direction} vs ${entry.entryDirection})`);
+      if (existing.status !== entry.status) diffs.push(`status (${existing.status} vs ${entry.status})`);
+      if (entry.fxRate && entry.fxRate > 0 && Math.abs(Number(existing.fx_rate) - entry.fxRate) > 0.0001) {
+        diffs.push(`fxRate (${existing.fx_rate} vs ${entry.fxRate})`);
+      }
+      const existEnv = existing.environment || 'staging';
+      const entryEnv = entry.environment || 'staging';
+      if (existEnv !== entryEnv) diffs.push(`environment (${existEnv} vs ${entryEnv})`);
+      const existRev = existing.reversal_of_id || null;
+      const entryRev = entry.reversalOfId || null;
+      if (existRev !== entryRev) diffs.push(`reversalOfId (${existRev} vs ${entryRev})`);
+      if (existing.source_event_type !== entry.sourceEventType) diffs.push(`sourceEventType (${existing.source_event_type} vs ${entry.sourceEventType})`);
+      if (existing.source_id !== entry.sourceId) diffs.push(`sourceId (${existing.source_id} vs ${entry.sourceId})`);
+
+      if (diffs.length > 0) {
+        throw new Error(
+          `IDEMPOTENCY_PAYLOAD_MISMATCH: Idempotency key '${entry.idempotencyKey}' already exists with divergent payload parameters (${diffs.join(', ')}).`
+        );
+      }
+    };
+
+    // 1. Idempotency Check with Integral Payload Fingerprint Verification
     const checkRes = await c.query(
       `SELECT * FROM financial_ledger WHERE idempotency_key = $1;`,
       [entry.idempotencyKey]
     );
     if (checkRes.rows.length > 0) {
       const existing = checkRes.rows[0];
-      const diffAmount = Math.abs(Number(existing.amount_original) - entry.amountOriginal);
-      if (
-        existing.source_event_type !== entry.sourceEventType ||
-        existing.source_id !== entry.sourceId ||
-        existing.category !== entry.category ||
-        existing.currency !== entry.currency ||
-        diffAmount > 0.001
-      ) {
-        throw new Error(
-          `IDEMPOTENCY_PAYLOAD_MISMATCH: Idempotency key '${entry.idempotencyKey}' already exists with divergent payload parameters.`
-        );
-      }
+      validateFingerprint(existing, Number(existing.fx_rate));
       return mapLedgerRowToEntry(existing);
     }
 
@@ -958,25 +1035,14 @@ export async function recordFinancialLedgerEntry(
       }
     }
 
-    // Fallback resolution for race condition: retrieve conflicting entry and verify payload
+    // Fallback resolution for race condition: retrieve conflicting entry and verify integral payload fingerprint
     const conflictRes = await c.query(
       `SELECT * FROM financial_ledger WHERE idempotency_key = $1;`,
       [entry.idempotencyKey]
     );
     if (conflictRes.rows.length > 0) {
       const existing = conflictRes.rows[0];
-      const diffAmount = Math.abs(Number(existing.amount_original) - entry.amountOriginal);
-      if (
-        existing.source_event_type !== entry.sourceEventType ||
-        existing.source_id !== entry.sourceId ||
-        existing.category !== entry.category ||
-        existing.currency !== entry.currency ||
-        diffAmount > 0.001
-      ) {
-        throw new Error(
-          `IDEMPOTENCY_PAYLOAD_MISMATCH: Idempotency key '${entry.idempotencyKey}' already exists with divergent payload parameters.`
-        );
-      }
+      validateFingerprint(existing, fxRate);
       return mapLedgerRowToEntry(existing);
     }
 
@@ -1025,7 +1091,7 @@ export async function recordCompensatoryReversal(
       fxRate: Number(orig.fx_rate),
       fxSource: orig.fx_source,
       category: orig.category, // Preserves original category for exact 1:1 neutralization
-      status: 'REALIZADO',
+      status: orig.status, // Preserves original classification: ESTIMADO remains ESTIMADO, REALIZADO remains REALIZADO
       reversalOfId: orig.id,
       metadata: {
         reason,
@@ -1245,21 +1311,31 @@ export async function calculateAuditedDre(
 ): Promise<{
   us: AuditedDreStatement;
   br: AuditedDreStatement;
+  ml: AuditedDreStatement;
   consolidated: AuditedDreStatement;
 }> {
   const pool = client || getPostgresPool();
 
-  // 1. Fetch ledger entries matching period filter (supports month YYYY-MM, date range YYYY-MM-DD:YYYY-MM-DD, year YYYY, or ALL)
+  // 1. Strict Period Validation and Sanitization (Order 047)
   let periodQuery = '';
   const queryParams: any[] = [];
 
   if (period && period !== 'ALL') {
     if (period.includes(':')) {
+      if (!/^\d{4}-\d{2}-\d{2}:\d{4}-\d{2}-\d{2}$/.test(period)) {
+        throw new Error('INVALID_PERIOD_FORMAT: Formato de intervalo deve ser YYYY-MM-DD:YYYY-MM-DD.');
+      }
       const [startDate, endDate] = period.split(':');
+      if (startDate > endDate) {
+        throw new Error('INVALID_DATE_RANGE: Data inicial maior que a data final no intervalo contábil.');
+      }
       queryParams.push(startDate, endDate);
       periodQuery = `WHERE competence_date >= $1 AND competence_date <= $2`;
     } else if (/^\d{4}-\d{2}$/.test(period)) {
       const [year, month] = period.split('-').map(Number);
+      if (month < 1 || month > 12) {
+        throw new Error('INVALID_PERIOD_FORMAT: Mês inválido no período contábil.');
+      }
       const startDate = `${period}-01`;
       const nextMonthYear = month === 12 ? year + 1 : year;
       const nextMonth = month === 12 ? 1 : month + 1;
@@ -1267,11 +1343,14 @@ export async function calculateAuditedDre(
       queryParams.push(startDate, endDate);
       periodQuery = `WHERE competence_date >= $1 AND competence_date < $2`;
     } else if (/^\d{4}$/.test(period)) {
-      queryParams.push(`${period}-01-01`, `${Number(period) + 1}-01-01`);
+      const yr = Number(period);
+      if (yr < 2000 || yr > 2100) {
+        throw new Error('INVALID_PERIOD_FORMAT: Ano inválido no período contábil.');
+      }
+      queryParams.push(`${period}-01-01`, `${yr + 1}-01-01`);
       periodQuery = `WHERE competence_date >= $1 AND competence_date < $2`;
     } else {
-      queryParams.push(period + '%');
-      periodQuery = `WHERE competence_date::text LIKE $1`;
+      throw new Error(`INVALID_PERIOD_FORMAT: Período contábil '${period}' inválido. Formatos válidos: YYYY-MM, YYYY, YYYY-MM-DD:YYYY-MM-DD ou ALL.`);
     }
   }
 
@@ -1312,6 +1391,7 @@ export async function calculateAuditedDre(
 
   const usData = initStatementMetrics();
   const brData = initStatementMetrics();
+  const mlData = initStatementMetrics();
   const consData = initStatementMetrics();
 
   // Determine active FX rate representation for statement header
@@ -1335,8 +1415,7 @@ export async function calculateAuditedDre(
   }
 
   for (const r of rows) {
-    const isUs = r.marketplace === 'Amazon US';
-    const amountOrig = Number(r.amount_original);
+        const amountOrig = Number(r.amount_original);
     const amountBrl = Number(r.amount_brl);
     const cat: FinancialCategory = r.category;
     const status: FinancialStatus = r.status;
@@ -1401,11 +1480,16 @@ export async function calculateAuditedDre(
       }
     };
 
-    if (isUs) {
-      processEntry(usData, amountOrig);
+    if (r.marketplace === 'Amazon US') {
+      processEntry(usData, amountOrig); // Native USD only
+    } else if (r.marketplace === 'Amazon BR') {
+      processEntry(brData, amountOrig); // Native BRL
+    } else if (r.marketplace === 'Mercado Livre') {
+      processEntry(mlData, amountOrig); // Native BRL
     } else {
       processEntry(brData, amountOrig);
     }
+    // Consolidated receives strictly BRL amounts converted via authoritative rates (never raw USD)
     processEntry(consData, amountBrl);
   }
 
@@ -1488,6 +1572,7 @@ export async function calculateAuditedDre(
   return {
     us: buildStatement(usData, 'Amazon US', 'USD'),
     br: buildStatement(brData, 'Amazon BR', 'BRL'),
+    ml: buildStatement(mlData, 'Mercado Livre', 'BRL'),
     consolidated: buildStatement(consData, 'CONSOLIDATED', 'BRL'),
   };
 }

@@ -58,7 +58,11 @@ async function runStagingMigration() {
   console.log("Garantindo permissões para staging_operator em 'helpus_staging'...");
   await client.query("GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO staging_operator;");
   await client.query("GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO staging_operator;");
-  console.log("✓ Permissões concedidas com sucesso!");
+  await client.query("CREATE SCHEMA IF NOT EXISTS p1_test_isolated;");
+  await client.query("GRANT ALL ON SCHEMA p1_test_isolated TO staging_operator;");
+  await client.query("GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA p1_test_isolated TO staging_operator;");
+  await client.query("ALTER DEFAULT PRIVILEGES IN SCHEMA p1_test_isolated GRANT ALL ON TABLES TO staging_operator;");
+  console.log("✓ Permissões e schema isolado p1_test_isolated concedidos com sucesso!");
 
   await client.end();
 
