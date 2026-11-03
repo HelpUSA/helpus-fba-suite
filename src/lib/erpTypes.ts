@@ -266,6 +266,8 @@ export interface FinancialLedgerEntry {
   category: FinancialCategory;
   status: FinancialStatus;
   reversalOfId?: string;
+  /** Verified FX observation linked to a separately approved documentary batch (migration 003). */
+  fxRateId?: string;
   metadata?: Record<string, unknown>;
   createdAt?: string;
   createdBy?: string;
