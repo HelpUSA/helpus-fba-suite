@@ -793,6 +793,7 @@ function mapLedgerRowToEntry(row: any): FinancialLedgerEntry {
     category: row.category,
     status: row.status,
     reversalOfId: row.reversal_of_id || undefined,
+    fxRateId: row.fx_rate_id || undefined,
     metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata || {},
     createdAt: row.created_at,
     createdBy: row.created_by,
@@ -992,6 +993,7 @@ export async function recordFinancialLedgerEntry(
       if (existRev !== entryRev) diffs.push(`reversalOfId (${existRev} vs ${entryRev})`);
       if (existing.source_event_type !== entry.sourceEventType) diffs.push(`sourceEventType (${existing.source_event_type} vs ${entry.sourceEventType})`);
       if (existing.source_id !== entry.sourceId) diffs.push(`sourceId (${existing.source_id} vs ${entry.sourceId})`);
+      if (entry.fxRateId && existing.fx_rate_id !== entry.fxRateId) diffs.push('fxRateId (mismatch)');
 
       // Financial metadata comparison
       if (entry.metadata && typeof entry.metadata === 'object' && existing.metadata && typeof existing.metadata === 'object') {
@@ -1017,6 +1019,15 @@ export async function recordFinancialLedgerEntry(
         );
       }
     };
+
+    // Resolve the active ledger table through search_path. Migration 003 is staged,
+    // so legacy schema 002 remains compatible until explicitly migrated.
+    const fxReferenceColumn = await c.query(`SELECT EXISTS (
+      SELECT 1 FROM pg_attribute
+      WHERE attrelid = to_regclass('financial_ledger')
+        AND attname = 'fx_rate_id' AND NOT attisdropped
+    ) AS enabled`);
+    const hasFxReference = fxReferenceColumn.rows[0]?.enabled === true;
 
     // 1. Idempotency Pre-Check with Deterministic FX Matching
     const checkRes = await c.query(
@@ -1064,6 +1075,28 @@ export async function recordFinancialLedgerEntry(
       fxSource = 'PARITY_BRL';
     }
 
+    // If the provenance migration has been enabled, a realized foreign-currency
+    // posting MUST link to the exact FX observation. PostgreSQL independently
+    // verifies approved batch, evidence metadata and original FX date.
+    let fxRateId: string | undefined = entry.fxRateId;
+    if (hasFxReference && entry.status === 'REALIZADO' && entry.currency !== 'BRL') {
+      const historicalSource = fxSource.endsWith('_PRIOR_CLOSE')
+        ? fxSource.slice(0, -'_PRIOR_CLOSE'.length) : fxSource;
+      const priorClose = fxSource.endsWith('_PRIOR_CLOSE');
+      const fxMatch = await c.query(`SELECT id FROM fx_rates
+        WHERE currency_from = $1 AND currency_to = 'BRL'
+          AND source = $2 AND rate = $3
+          AND (CASE WHEN $4::boolean THEN
+            rate_date < $5::date AND rate_date >= $5::date - INTERVAL '7 days'
+            ELSE rate_date = $5::date END)
+        ORDER BY rate_date DESC LIMIT 1`,
+        [entry.currency, historicalSource, fxRate, priorClose, entry.competenceDate]);
+      if (fxMatch.rows.length !== 1 || (fxRateId && fxRateId !== fxMatch.rows[0].id)) {
+        throw new Error('FX_PROVENANCE_UNVERIFIED: verified rate reference unavailable or inconsistent');
+      }
+      fxRateId = fxMatch.rows[0].id;
+    }
+
     const amountBrl = entry.currency !== 'BRL'
       ? parseFloat((entry.amountOriginal * fxRate).toFixed(2))
       : entry.amountOriginal;
@@ -1075,8 +1108,8 @@ export async function recordFinancialLedgerEntry(
           entry_number, idempotency_key, source_event_type, source_id,
           marketplace, competence_date, currency, amount_original,
           entry_direction, amount_brl, fx_rate, fx_source, category,
-          status, reversal_of_id, metadata, created_by, environment
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+          status, reversal_of_id, metadata, created_by, environment${hasFxReference ? ', fx_rate_id' : ''}
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18${hasFxReference ? ', $19' : ''})
         ON CONFLICT (idempotency_key) DO NOTHING
         RETURNING *;`,
         [
@@ -1098,6 +1131,7 @@ export async function recordFinancialLedgerEntry(
           JSON.stringify(entry.metadata || {}),
           entry.createdBy || 'SYSTEM',
           entry.environment || 'staging',
+          ...(hasFxReference ? [fxRateId || null] : []),
         ]
       );
 
@@ -1168,6 +1202,7 @@ export async function recordCompensatoryReversal(
       category: orig.category, // Preserves original category for exact 1:1 neutralization
       status: orig.status, // Preserves original classification: ESTIMADO remains ESTIMADO, REALIZADO remains REALIZADO
       reversalOfId: orig.id,
+      fxRateId: orig.fx_rate_id || undefined,
       metadata: {
         reason,
         originalEntryNumber: orig.entry_number,
