@@ -32,6 +32,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Syntax-check every P1 standalone command
+        run: |
+          node --check scripts/audit_p1_fx_provenance_readonly.js
+          node --check scripts/check_p1_fx_source_release_gate.js
+          node --check scripts/verify_bcb_ptax_source.cjs
+          node --check scripts/import_bcb_ptax_staging.cjs
+          node --check scripts/approve_fx_batch_staging.cjs
+          node --check scripts/lib/bcb_ptax_validation.cjs
+          node --check scripts/lib/fx_approval_signature.cjs
       - name: Static SQL / FX provenance / official source tests
         run: |
           node --test scripts/test_p1_fx_003_integrity.test.cjs scripts/test_p1_fx_provenance_contract.test.cjs scripts/test_p1_bcb_ptax_validation.test.cjs scripts/test_p1_fx_approval_signature.test.cjs
