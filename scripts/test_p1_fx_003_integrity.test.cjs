@@ -34,7 +34,7 @@ test('003 blocks undocumented realized USD and keeps immutable ledger',()=>{
   assert.match(sql,/NEW\.status <> 'REALIZADO' OR NEW\.currency <> 'USD'/);
   assert.match(sql,/NEW\.fx_rate_id IS NULL/);
   assert.match(sql,/FX_PROVENANCE_UNVERIFIED/);
-  assert.match(sql,/REVOKE UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON public\.financial_ledger FROM staging_operator/);
+  assert.match(sql,/REVOKE UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER\s+ON public\.financial_ledger FROM staging_operator/);
 });
 test('003 does not fabricate historical documentary evidence',()=>{
   assert.doesNotMatch(sql,/UPDATE\s+(?:public\.)?fx_rates\s+SET\s+verified_at/i);
