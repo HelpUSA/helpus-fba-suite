@@ -4,7 +4,12 @@ import { validateApiRequest } from '@/lib/authGuard';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const authorization = validateApiRequest(request, false, true);
+  if (!authorization.authorized) {
+    return NextResponse.json({ success: false, error: 'Acesso negado.' }, { status: 403 });
+  }
+  // Returns can reveal customer and financial information; never serve anonymously.
   try {
     const state = await getAuthoritativeErpState();
     const returns = state.returns || [];
@@ -15,7 +20,7 @@ export async function GET() {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { success: false, error: error.message || 'Erro ao carregar devoluções' },
+      { success: false, error: 'Erro ao carregar devoluções' },
       { status: 500 }
     );
   }
@@ -29,7 +34,6 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         error: authValidation.reason || 'Não autorizado',
-        hint: 'Defina x-helpus-auth-token com HELPUS_MASTER_SECRET para chamadas externas.',
       },
       { status: 403 }
     );
@@ -67,7 +71,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { success: false, error: error.message || 'Erro ao salvar devolução' },
+      { success: false, error: 'Erro ao salvar devolução' },
       { status: 500 }
     );
   }
