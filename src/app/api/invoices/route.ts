@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { ok: false, message: error?.message || 'Erro ao carregar notas fiscais' },
+      { ok: false, message: 'Erro ao carregar notas fiscais' },
       { status: 500 }
     );
   }
@@ -31,10 +31,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, message: auth.reason || 'Não autorizado para importar invoices.' }, { status: 403 });
     }
 
+    if (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production') {
+      return NextResponse.json({ ok: false, status: 'P2_NOT_HOMOLOGATED' }, { status: 503 });
+    }
     const body = await req.json();
     const { invoiceNumber, vendorName, vendorDoc, items, shippingCost, prepCost, date } = body;
 
-    if (!invoiceNumber || !vendorName || !items || items.length === 0) {
+    if (typeof invoiceNumber !== 'string' || invoiceNumber.length > 100 ||
+        typeof vendorName !== 'string' || vendorName.length > 200 ||
+        !Array.isArray(items) || items.length === 0 || items.length > 500 ||
+        !Number.isFinite(Number(shippingCost ?? 0)) || Number(shippingCost ?? 0) < 0 ||
+        !Number.isFinite(Number(prepCost ?? 0)) || Number(prepCost ?? 0) < 0) {
       return NextResponse.json(
         { ok: false, message: 'Dados da Commercial Invoice incompletos. Informe número, fornecedor e ao menos um item.' },
         { status: 400 }
@@ -58,7 +65,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { ok: false, message: error?.message || 'Erro ao importar Commercial Invoice' },
+      { ok: false, message: 'Erro ao importar Commercial Invoice' },
       { status: 500 }
     );
   }
