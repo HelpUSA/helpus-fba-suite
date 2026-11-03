@@ -42,3 +42,19 @@ A migração deve ser **aditiva e reversível na fase de staging**, compatível 
 | Governança | Revisão independente e confirmação do SHA final, prova de rollback; gate da Issue #9 fechado somente após smoke-tests de produção autorizados |
 
 **Importante:** este documento é uma especificação, **não a implementação do importador nem a comprovação das cotações**. O PR #10 pode continuar em revisão, mas não deve ser mesclado nem habilitado em produção enquanto o gate documental não estiver implementado e comprovado.
+
+## Implementação em revisão — migração 003 e fonte BCB
+
+A migração `scripts/migrations/003_fx_provenance_staging_review.sql` é **staging-only**, deve permanecer fora do deploy automático e exige PostgreSQL descartável antes de `helpus_staging` compartilhado. O ledger resolve `fx_rate_id` automaticamente para entradas USD REALIZADO quando o schema possui a coluna; no schema 002 mantém o caminho legado e não comprova procedência documental.
+
+O gate SQL também exige um registro em `fx_documentary_approvals` com status `APPROVED`, digest compatível e `approved_by` diferente do verificador de origem. A tabela de aprovações é append-only, sem permissão operacional de escrita. **O próprio nome APPROVED não substitui uma aprovação externa autêntica**; a ingestão e a verificação independente ainda precisam de credenciais e evidências controladas fora do GitHub.
+
+Para o boletim público de dólar, o coletor `node scripts/verify_bcb_ptax_source.cjs YYYY-MM-DD` busca o endpoint PTAX OData exclusivamente em `https://olinda.bcb.gov.br` e imprime um manifesto sem gravar dados. Requer Node com `fetch` nativo, TLS válido e rede; valida HTTPS sem redirects, resposta única de fechamento, data e cotação positiva com quatro decimais. O hash SHA-256 cobre **bytes brutos da resposta**; reserialização JSON alteraria o digest. O manifesto é `PENDING` e não deve ser inserido como prova aprovada automaticamente.
+
+Referência institucional: [Banco Central do Brasil — Dólar comercial e documentação da API PTAX](https://dadosabertos.bcb.gov.br/dataset/dolar-americano-usd-todos-os-boletins-diarios).
+
+**Fluxo de revisão independente proposto:** (1) operador de importação autenticado obtém documento e registra metadados e digest em armazenamento privado; (2) verificador distinto confere domínio, dados, digest, lote, intervalo e período; (3) somente o aprovador autorizado por uma role segregada registra a decisão; (4) trigger impede USD REALIZADO sem vínculo e aprovação; (5) auditor read-only verifica grants e contagens, sem se declarar auditor de documentos.
+
+Testes de código não substituem verificação oficial no Neon: `node --test scripts/test_p1_bcb_ptax_validation.test.cjs scripts/test_p1_fx_003_integrity.test.cjs` e `node scripts/check_p1_fx_source_release_gate.js`. O preflight pode e deve retornar bloqueado enquanto a importação autenticada ou a aprovação de evidências não estiver implementada e demonstrada.
+
+**Critério anti-promoção:** nenhuma execução automática do SQL 003, merge do PR #10 ou habilitação de `P1_HOMOLOGATED_PRODUCTION` até certificação dos contratos de API, RBAC, evidências, smoke tests e rollback.
