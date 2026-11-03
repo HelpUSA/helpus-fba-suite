@@ -34,7 +34,7 @@ jobs:
           node-version: '24'
       - name: Static SQL / FX provenance / official source tests
         run: |
-          node --test scripts/test_p1_fx_003_integrity.test.cjs scripts/test_p1_fx_provenance_contract.test.cjs scripts/test_p1_bcb_ptax_validation.test.cjs
+          node --test scripts/test_p1_fx_003_integrity.test.cjs scripts/test_p1_fx_provenance_contract.test.cjs scripts/test_p1_bcb_ptax_validation.test.cjs scripts/test_p1_fx_approval_signature.test.cjs
       - name: Source release gate must fail closed pending trusted importer
         shell: bash
         run: |
