@@ -1,0 +1,29 @@
+name: P2 P3 API Safety Static Gate
+on:
+  push:
+    branches:
+      - feat/p0-p3-erp-implementation-20261031
+  pull_request:
+    paths:
+      - 'src/app/api/returns/route.ts'
+      - 'src/app/api/invoices/route.ts'
+      - 'src/app/api/nfe/import/route.ts'
+      - 'src/app/api/integrations/**'
+      - 'scripts/test_p2p3_api_security.test.cjs'
+      - '.github/workflows/p2-p3-static-gate.yml'
+permissions:
+  contents: read
+concurrency:
+  group: p2p3-static-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  source-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: P2/P3 API fail-closed source tests
+        run: node --test scripts/test_p2p3_api_security.test.cjs
