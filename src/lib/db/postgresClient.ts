@@ -1028,6 +1028,12 @@ export async function recordFinancialLedgerEntry(
         AND attname = 'fx_rate_id' AND NOT attisdropped
     ) AS enabled`);
     const hasFxReference = fxReferenceColumn.rows[0]?.enabled === true;
+    // Never accept an unlinked realized USD entry on a production runtime.
+    // Schema-002 remains available to isolated staging regression tests only.
+    if (!hasFxReference && entry.status === 'REALIZADO' && entry.currency === 'USD'
+        && (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production')) {
+      throw new Error('FX_PROVENANCE_MIGRATION_REQUIRED: realized USD blocked without verified FX schema');
+    }
 
     // 1. Idempotency Pre-Check with Deterministic FX Matching
     const checkRes = await c.query(
