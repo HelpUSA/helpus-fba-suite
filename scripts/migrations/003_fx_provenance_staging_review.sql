@@ -90,6 +90,7 @@ BEGIN
      OR approved.source_system <> fx.evidence_kind
      OR approved.approved_by = fx.verified_by
      OR approved.approved_at IS NULL OR approved.approved_at > NOW()
+     OR approved.approved_at < fx.verified_at
      OR NULLIF(BTRIM(approved.approved_by), '') IS NULL THEN
     RAISE EXCEPTION 'FX_PROVENANCE_UNVERIFIED: independent approval missing';
   END IF;
