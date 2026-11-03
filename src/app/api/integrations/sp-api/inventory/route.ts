@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateApiRequest } from '@/lib/authGuard';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
+  const auth = validateApiRequest(request, false, true);
+  if (!auth.authorized) {
+    return NextResponse.json({ success: false, error: 'Acesso negado.' }, { status: 403 });
+  }
+  // P2 integration is not homologated for production access.
+  if (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production') {
+    return NextResponse.json({ success: false, status: 'P2_NOT_HOMOLOGATED', data: null }, { status: 503 });
+  }
   const startTime = Date.now();
   const searchParams = request.nextUrl.searchParams;
   const sku = searchParams.get('sku') || 'HU-SIL-CABLE-FBA-2026';
@@ -55,7 +64,7 @@ export async function GET(request: NextRequest) {
           asin,
           sku,
           durationMs: Date.now() - startTime,
-          error: `Falha na autenticação LWA (HTTP ${tokenRes.status}): ${errText.slice(0, 300)}`,
+          error: `Falha na autenticação LWA (HTTP ${tokenRes.status}).`,
           data: null,
         },
         { status: 502 }
@@ -89,7 +98,7 @@ export async function GET(request: NextRequest) {
           asin,
           sku,
           durationMs: Date.now() - startTime,
-          error: `Falha ao consultar SP-API FBA Inventory (HTTP ${spRes.status}): ${errText.slice(0, 300)}`,
+          error: `Falha ao consultar SP-API FBA Inventory (HTTP ${spRes.status}).`,
           data: null,
         },
         { status: 502 }
@@ -118,7 +127,7 @@ export async function GET(request: NextRequest) {
         asin,
         sku,
         durationMs: Date.now() - startTime,
-        error: `Exceção de rede ao contatar Amazon SP-API: ${err.message || String(err)}`,
+        error: 'Falha de conexão com Amazon SP-API.',
         data: null,
       },
       { status: 500 }
