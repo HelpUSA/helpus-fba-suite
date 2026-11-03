@@ -1,0 +1,41 @@
+name: P3 Isolated Returns Gate
+on:
+  push:
+    branches:
+      - feat/p3-returns-isolated-20261103
+  pull_request:
+    paths:
+      - 'src/app/api/**'
+      - 'scripts/test_p*-isolated*.cjs'
+      - 'scripts/test_p?_isolated_*.cjs'
+      - 'package-lock.json'
+      - '.github/workflows/**'
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  offline-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test scripts/test_p3_isolated_returns.test.cjs
+  next-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run lint
+      - run: npm run build
+        env:
+          CI: 'true'
