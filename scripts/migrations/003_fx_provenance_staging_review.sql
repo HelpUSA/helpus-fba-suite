@@ -76,6 +76,7 @@ BEGIN
   IF NOT FOUND OR approved.approval_status <> 'APPROVED'
      OR LOWER(approved.evidence_sha256) <> LOWER(fx.evidence_sha256)
      OR approved.source_system <> fx.evidence_kind
+     OR approved.approved_by = fx.verified_by
      OR approved.approved_at IS NULL OR approved.approved_at > NOW()
      OR NULLIF(BTRIM(approved.approved_by), '') IS NULL THEN
     RAISE EXCEPTION 'FX_PROVENANCE_UNVERIFIED: independent batch approval missing';
