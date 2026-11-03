@@ -40,7 +40,7 @@ const checks = [
   {
     id: 'FX-STATIC-05',
     description: 'Auditor verifies TRUNCATE effective grant separately',
-    pass: /has_table_privilege\([^\n]*'TRUNCATE'/.test(audit),
+    pass: audit.includes('has_table_privilege(') && audit.includes("'TRUNCATE'"),
   },
   {
     id: 'FX-STATIC-06',
