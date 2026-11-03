@@ -10,6 +10,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Acesso negado.' }, { status: 403 });
   }
   // Returns can reveal customer and financial information; never serve anonymously.
+  if (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production') {
+    return NextResponse.json({ success: false, status: 'P3_NOT_HOMOLOGATED' }, { status: 503 });
+  }
   try {
     const state = await getAuthoritativeErpState();
     const returns = state.returns || [];
@@ -39,6 +42,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production') {
+    return NextResponse.json({ success: false, status: 'P3_NOT_HOMOLOGATED' }, { status: 503 });
+  }
   try {
     const body = await request.json();
     if (!body.sku || !body.productTitle || !body.quantity || !body.reason || !body.warehouse) {
@@ -48,17 +54,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const quantity = Number(body.quantity);
+    const reimbursementAmount = body.reimbursementAmount == null ? 0 : Number(body.reimbursementAmount);
+    if (!Number.isSafeInteger(quantity) || quantity <= 0 ||
+        !Number.isFinite(reimbursementAmount) || reimbursementAmount < 0) {
+      return NextResponse.json({ success: false, error: 'Quantidade ou reembolso inválido.' }, { status: 400 });
+    }
     const newRecord = await addReturnRecord({
       returnDate: body.returnDate || new Date().toISOString(),
       orderNumber: body.orderNumber,
       sku: body.sku,
       productTitle: body.productTitle,
-      quantity: Number(body.quantity),
+      quantity,
       reason: body.reason,
       disposition: body.disposition || 'SELLABLE',
       warehouse: body.warehouse,
       status: body.status || 'RECEIVED',
-      reimbursementAmount: body.reimbursementAmount ? Number(body.reimbursementAmount) : 0,
+      reimbursementAmount,
       currency: body.currency || 'USD',
       notes: body.notes,
       isDemo: false,
