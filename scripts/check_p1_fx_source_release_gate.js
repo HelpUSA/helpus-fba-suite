@@ -49,10 +49,10 @@ const checks = [
   },
   {
     id: 'FX-STATIC-07',
-    description: 'Migration requires independently approved documentary FX batch',
-    pass: /FROM\\s+public\\.fx_documentary_approvals/i.test(schema)
-      && /approved\\.approval_status\\s*<>\\s*'APPROVED'/.test(schema)
-      && /approved\\.approved_by\\s*=\\s*fx\\.verified_by/.test(schema),
+    description: 'Independent approved-batch lookup is mandatory',
+    pass: schema.includes('FROM public.fx_documentary_approvals')
+      && schema.includes("approved.approval_status <> 'APPROVED'")
+      && schema.includes('approved.approved_by = fx.verified_by'),
   },
   {
     id: 'FX-STATIC-08',
