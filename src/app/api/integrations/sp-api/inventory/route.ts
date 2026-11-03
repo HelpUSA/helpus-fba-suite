@@ -54,7 +54,6 @@ export async function GET(request: NextRequest) {
     });
 
     if (!tokenRes.ok) {
-      const errText = await tokenRes.text();
       return NextResponse.json(
         {
           success: false,
@@ -88,7 +87,6 @@ export async function GET(request: NextRequest) {
     );
 
     if (!spRes.ok) {
-      const errText = await spRes.text();
       return NextResponse.json(
         {
           success: false,
@@ -117,7 +115,7 @@ export async function GET(request: NextRequest) {
       durationMs: Date.now() - startTime,
       data: apiResponseData,
     });
-  } catch (err: any) {
+  } catch {
     return NextResponse.json(
       {
         success: false,
