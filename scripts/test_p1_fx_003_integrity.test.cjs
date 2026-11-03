@@ -26,7 +26,7 @@ test('003 has one transaction boundary and one FX trigger/function',()=>{
 });
 test('003 provenance-hash CHECK is complete and create is idempotent',()=>{
   assert.match(sql,/IF NOT EXISTS \(\s*SELECT 1 FROM pg_constraint/);
-  assert.match(sql,/conrelid = 'public\.fx_rates'::regclass/);
+  assert.match(sql,/conrelid\s*=\s*'public\.fx_rates'::regclass/);
   assert.match(sql,/CHECK \(evidence_sha256 IS NULL OR evidence_sha256 ~ '\^\[0-9a-fA-F\]\{64\}\$'\);/);
   assert.match(sql,/END\s*\$constraint\$;/);
 });
