@@ -49,15 +49,21 @@ const checks = [
   },
   {
     id: 'FX-STATIC-07',
-    description: 'Migration uses explicit approved-batch lookup rather than only batch ID presence',
-    pass: /JOIN\s+public\.[a-z_]*batch/i.test(schema)
-      || /FROM\s+public\.[a-z_]*batch/i.test(schema),
+    description: 'Migration requires independently approved documentary FX batch',
+    pass: /FROM\\s+public\\.fx_documentary_approvals/i.test(schema)
+      && /approved\\.approval_status\\s*<>\\s*'APPROVED'/.test(schema)
+      && /approved\\.approved_by\\s*=\\s*fx\\.verified_by/.test(schema),
   },
   {
     id: 'FX-STATIC-08',
     description: 'Migration has guarded or versioned constraint creation',
     pass: /IF\s+NOT\s+EXISTS[\s\S]*?fx_provenance_hash_format/.test(schema)
       || /pg_constraint[\s\S]*?fx_provenance_hash_format/.test(schema),
+  },
+  {
+    id: 'FX-STATIC-09',
+    description: 'Externally authenticated importer and independent approval service must pass separate attestation',
+    pass: false, // Intentionally fail-closed until an externally reviewed importer/approver exists.
   },
 ];
 const failed = checks.filter(c => !c.pass);
