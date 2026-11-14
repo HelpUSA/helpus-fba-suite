@@ -41,6 +41,13 @@ export default function Sidebar() {
       badge: 'NF-e',
       highlight: true,
     },
+    {
+      href: '/livros',
+      label: 'Livros & KDP',
+      flag: '📚',
+      badge: 'POD',
+      highlight: true,
+    },
   ];
 
   const toolsItems = [

@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useLanguage } from '@/context/LanguageContext';
 import { INITIAL_PRODUCTS, INITIAL_SHIPMENTS } from '@/data/mockProducts';
+import { MOCK_BOOKS } from '@/data/mockBooks';
 import {
   Globe2,
   Package,
@@ -17,7 +18,8 @@ import {
   DollarSign,
   FileText,
   Boxes,
-  Scale
+  Scale,
+  BookOpen
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -58,7 +60,7 @@ export default function HomePage() {
           <div className="text-2xl sm:text-3xl font-extrabold text-white">
             {INITIAL_PRODUCTS.length}
           </div>
-          <div className="text-[11px] text-blue-400">{usProducts.length} EUA • {brProducts.length} Brasil</div>
+          <div className="text-[11px] text-blue-400">{usProducts.length} EUA • {brProducts.length} Brasil • {MOCK_BOOKS.length} Livros KDP</div>
         </div>
 
         <div className="p-4 sm:p-5 bg-slate-900/90 border border-slate-800 rounded-2xl space-y-2">
@@ -97,7 +99,7 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6">
           {/* Card 1: USA Operation */}
           <Link
             href="/usa"
@@ -157,6 +159,36 @@ export default function HomePage() {
               </span>
             </div>
           </Link>
+
+          {/* Card 3: Amazon KDP & Editorial */}
+          <Link
+            href="/livros"
+            className="group p-6 sm:p-7 bg-slate-900/90 hover:bg-slate-900 border border-slate-800 hover:border-purple-500/50 rounded-3xl space-y-5 transition shadow-lg relative overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full blur-2xl group-hover:bg-purple-500/10 transition"></div>
+            <div className="flex items-center justify-between">
+              <span className="text-4xl">📚</span>
+              <span className="px-3 py-1 bg-purple-500/10 text-purple-400 border border-purple-500/30 rounded-full text-xs font-mono font-bold">
+                Amazon KDP POD
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xl font-bold text-white group-hover:text-purple-400 transition">
+                Amazon KDP & Editorial
+              </h3>
+              <p className="text-xs text-slate-400 leading-relaxed font-sans">
+                Publicações globais Print-on-Demand e Kindle eBook. Custo zero de armazenagem e estoque, com 60% a 70% de royalties líquidos.
+              </p>
+            </div>
+
+            <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
+              <span className="text-slate-400">3 Obras • 7 Formatos</span>
+              <span className="text-purple-400 font-bold flex items-center gap-1 group-hover:translate-x-1 transition">
+                <span>Ver Catálogo</span>
+              </span>
+            </div>
+          </Link>
         </div>
       </div>
 
@@ -165,7 +197,19 @@ export default function HomePage() {
         <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono text-slate-400">
           {t.quickToolsTitle}
         </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+          <Link
+            href="/livros"
+            className="p-4 bg-slate-950 hover:bg-slate-800/60 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3 transition group"
+          >
+            <div className="p-2.5 bg-purple-500/10 text-purple-400 rounded-xl w-fit group-hover:scale-110 transition">
+              <BookOpen className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-white">Livros & KDP</div>
+              <div className="text-[10px] text-slate-400">POD & E-books</div>
+            </div>
+          </Link>
           <Link
             href="/dre"
             className="p-4 bg-slate-950 hover:bg-slate-800/60 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3 transition group"
