@@ -16,7 +16,8 @@ import {
   TrendingUp,
   DollarSign,
   FileText,
-  Boxes
+  Boxes,
+  Scale
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -57,7 +58,7 @@ export default function HomePage() {
           <div className="text-2xl sm:text-3xl font-extrabold text-white">
             {INITIAL_PRODUCTS.length}
           </div>
-          <div className="text-[11px] text-blue-400">1 EUA • 6 Brasil</div>
+          <div className="text-[11px] text-blue-400">{usProducts.length} EUA • {brProducts.length} Brasil</div>
         </div>
 
         <div className="p-4 sm:p-5 bg-slate-900/90 border border-slate-800 rounded-2xl space-y-2">
@@ -164,7 +165,20 @@ export default function HomePage() {
         <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono text-slate-400">
           {t.quickToolsTitle}
         </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+          <Link
+            href="/dre"
+            className="p-4 bg-slate-950 hover:bg-slate-800/60 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3 transition group"
+          >
+            <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl w-fit group-hover:scale-110 transition">
+              <Scale className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-white">DRE & P&L</div>
+              <div className="text-[10px] text-slate-400">Contábil & Realizado</div>
+            </div>
+          </Link>
+
           <Link
             href="/nfe"
             className="p-4 bg-slate-950 hover:bg-slate-800/60 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3 transition group"

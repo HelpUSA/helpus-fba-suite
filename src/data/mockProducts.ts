@@ -6,6 +6,10 @@ export interface ProductDeal {
   title: string;
   category: string;
   imageUrl: string;
+  fichaUrl?: string;
+  secondaryImages?: string[];
+  bulletPoints?: string[];
+  logisticsModel?: 'FBA' | 'DBA';
   supplierName: string;
   supplierUrl: string;
   supplierPrice: number; // in local currency (USD or BRL)
@@ -62,45 +66,69 @@ export const INITIAL_PRODUCTS: ProductDeal[] = [
     title: 'HelpUS Reusable Silicone Cable Ties 20 Pack Cord Management Straps',
     category: 'Tools & Home Improvement',
     imageUrl: '/images/products/silicone-cable-ties-main.jpg',
+    secondaryImages: [
+      '/images/products/silicone-cable-ties-catalog.png',
+      '/images/products/silicone-cable-ties-pack.webp',
+      '/images/products/silicone-cable-ties-spec.jpg'
+    ],
+    bulletPoints: [
+      'Reusable High-Elasticity Silicone: Eco-friendly, durable, and weather resistant.',
+      '20-Pack Multicolor Kit: Multiple vibrant colors for visual wire coding and cable organization.',
+      'Compact & Lightweight: Pack weight 0.16 lb (2.5 oz), reduced FBA standard tier tiering.',
+      'Multipurpose Utility: Perfect for home, office, kitchen appliance cords, and travel cable management.'
+    ],
+    logisticsModel: 'FBA',
     supplierName: 'Teshuai Silicone / Shandsome',
     supplierUrl: 'https://www.amazon.com/dp/B0HLTXWCV7',
-    supplierPrice: 1.25,
-    amazonPrice: 9.99,
-    amazonReferralFee: 1.50,
-    fbaFee: 6.05,
+    supplierPrice: 1.90,
+    amazonPrice: 12.99,
+    amazonReferralFee: 1.95,
+    fbaFee: 4.11, // Tarifa reclassificada após ajuste de peso para 0.16 lb no FBA Revenue Calculator
     prepFee: 1.50,
     inboundShipping: 0.80,
-    netProfit: 1.87,
-    roiPercent: 150,
+    netProfit: 4.63,
+    roiPercent: 122,
     isUngated: true,
     estMonthlySales: 450,
     bsrRank: 14200,
-    status: 'At Prep',
+    status: 'Live on Amazon',
     marketplace: 'Amazon US',
     currency: 'USD',
     currentStock: 50,
-    warehouseLocation: 'Prep Ninjas (UT) -> Amazon RYY2 (GA)'
+    warehouseLocation: 'Prep Ninjas (UT) -> Amazon FC RYY2 (White, GA)'
   },
 
-  // 🇧🇷 PRODUTOS PILOTO OFICIAIS BRASIL (Nativos do Brasil - NF-e Nº 00002509)
+  // 🇧🇷 PRODUTOS PILOTO OFICIAIS BRASIL (Nativos do Brasil - NF-e Nº 00002509 - Modalidade DBA João Pessoa/PB)
   {
     id: 'prod-br-nativos-01',
     asin: 'BR-RESVERATROL-60C',
-    sku: 'NAT-RESV-60CAPS',
+    sku: 'NAT-RESV-60CAPS-01',
     ncm: '21069030',
-    title: 'Resveratrol Softgel 60 Cápsulas - Nativos do Brasil',
+    title: 'Resveratrol Puro Concentrado 60 Cápsulas Softgel Nativos do Brasil - Poderoso Antioxidante e Longevidade Celular',
     category: 'Suplementos & Vitaminas',
-    imageUrl: '/images/products/nat-resv-60caps.png',
+    imageUrl: '/images/prontas_amazon/01_Resveratrol_60caps_Amazon.png',
+    fichaUrl: '/images/nativos/01_resveratrol_ficha.jpg',
+    secondaryImages: [
+      '/images/prontas_amazon/01_Resveratrol_Completo_Amazon.png',
+      '/images/nativos/01_resveratrol_beneficios.jpg'
+    ],
+    bulletPoints: [
+      'Poderoso Antioxidante Natural: Auxilia na proteção contra o estresse oxidativo e radicais livres.',
+      'Ação Antienvelhecimento: Contribui para a vitalidade da pele e saúde cardiovascular celular.',
+      'Absorção Rápida: Apresentação em cápsulas softgel de alta biodisponibilidade.',
+      'Fórmula Pura e Segura: Frasco lacrado de fábrica com 60 cápsulas.'
+    ],
+    logisticsModel: 'DBA',
     supplierName: 'Nativos do Brasil Produtos Naturais',
     supplierUrl: 'https://www.nativosdobrasil.com.br',
     supplierPrice: 25.76,
-    amazonPrice: 79.90,
-    amazonReferralFee: 11.98,
-    fbaFee: 14.50,
+    amazonPrice: 69.90,
+    amazonReferralFee: 10.49,
+    fbaFee: 12.50,
     prepFee: 2.00,
     inboundShipping: 4.24,
-    netProfit: 21.42,
-    roiPercent: 83,
+    netProfit: 16.91,
+    roiPercent: 56,
     isUngated: true,
     estMonthlySales: 180,
     bsrRank: 4200,
@@ -108,26 +136,38 @@ export const INITIAL_PRODUCTS: ProductDeal[] = [
     marketplace: 'Amazon BR',
     currency: 'BRL',
     currentStock: 5,
-    warehouseLocation: 'Braspress em trânsito -> Bessa (PB)'
+    warehouseLocation: 'HelpUS Bessa (João Pessoa/PB) - Coleta DBA'
   },
   {
     id: 'prod-br-nativos-02',
     asin: 'BR-MAGNESIO-TREONATO-60C',
-    sku: 'NAT-MAG-TREON-60C',
+    sku: 'NAT-MAGTREON-60CAPS-01',
     ncm: '21069030',
-    title: 'Magnésio L-Treonato 60 Cápsulas - Nativos do Brasil',
+    title: 'Magnésio L-Treonato 60 Cápsulas Nativos do Brasil - Foco, Memória e Clareza Mental',
     category: 'Suplementos & Vitaminas',
-    imageUrl: '/images/products/nat-mag-treon-60c.png',
+    imageUrl: '/images/prontas_amazon/02_Magnesio_L_Treonato_60caps_Amazon.png',
+    fichaUrl: '/images/nativos/02_magnesio_treonato_completo.jpg',
+    secondaryImages: [
+      '/images/prontas_amazon/02_Magnesio_L_Treonato_Completo_Amazon.png',
+      '/images/nativos/02_magnesio_treonato_criativo.jpg'
+    ],
+    bulletPoints: [
+      'Suporte Cognitivo Avançado: O Magnésio L-Treonato atravessa a barreira hematoencefálica.',
+      'Memória e Concentração: Auxilia na retenção de memória, foco diário e clareza mental.',
+      'Qualidade do Sono: Favorece o relaxamento neural e um descanso reparador.',
+      '60 Cápsulas: Suplementação prática diária com máxima tolerância gástrica.'
+    ],
+    logisticsModel: 'DBA',
     supplierName: 'Nativos do Brasil Produtos Naturais',
     supplierUrl: 'https://www.nativosdobrasil.com.br',
     supplierPrice: 15.80,
     amazonPrice: 59.90,
-    amazonReferralFee: 8.98,
-    fbaFee: 14.50,
+    amazonReferralFee: 8.99,
+    fbaFee: 12.50,
     prepFee: 2.00,
     inboundShipping: 4.24,
-    netProfit: 14.38,
-    roiPercent: 91,
+    netProfit: 18.37,
+    roiPercent: 92,
     isUngated: true,
     estMonthlySales: 220,
     bsrRank: 3100,
@@ -135,26 +175,37 @@ export const INITIAL_PRODUCTS: ProductDeal[] = [
     marketplace: 'Amazon BR',
     currency: 'BRL',
     currentStock: 5,
-    warehouseLocation: 'Braspress em trânsito -> Bessa (PB)'
+    warehouseLocation: 'HelpUS Bessa (João Pessoa/PB) - Coleta DBA'
   },
   {
     id: 'prod-br-nativos-03',
     asin: 'BR-COQ10-VIT-E-60C',
-    sku: 'NAT-COQ10-VITE-60C',
+    sku: 'NAT-COQ10-60CAPS-01',
     ncm: '21069030',
-    title: 'Co-Q10 com Vitamina E 60 Cápsulas - Nativos do Brasil',
+    title: 'Coenzima Q10 Co-Q10 com Vitamina E 60 Cápsulas Nativos do Brasil - Energia Celular e Saúde do Coração',
     category: 'Suplementos & Vitaminas',
-    imageUrl: '/images/products/nat-coq10-vite-60c.png',
+    imageUrl: '/images/prontas_amazon/03_Co_Q10_VitaE_60caps_Amazon.png',
+    fichaUrl: '/images/nativos/03_co_q10_ficha.jpg',
+    secondaryImages: [
+      '/images/prontas_amazon/03_Co_Q10_Completo_Amazon.png'
+    ],
+    bulletPoints: [
+      'Produção de Energia Mitocondrial (ATP): Vital para níveis de disposição física diária.',
+      'Saúde Cardiovascular: Essencial para o bom funcionamento do músculo cardíaco e circulação.',
+      'Enriquecida com Vitamina E: Sinergia antioxidante que potencializa a absorção celular.',
+      'Tratamento Completo: Frasco lacrado com 60 cápsulas para 30 a 60 dias.'
+    ],
+    logisticsModel: 'DBA',
     supplierName: 'Nativos do Brasil Produtos Naturais',
     supplierUrl: 'https://www.nativosdobrasil.com.br',
     supplierPrice: 21.26,
-    amazonPrice: 69.90,
-    amazonReferralFee: 10.48,
-    fbaFee: 14.50,
+    amazonPrice: 64.90,
+    amazonReferralFee: 9.74,
+    fbaFee: 12.50,
     prepFee: 2.00,
     inboundShipping: 4.24,
-    netProfit: 17.42,
-    roiPercent: 82,
+    netProfit: 17.16,
+    roiPercent: 67,
     isUngated: true,
     estMonthlySales: 160,
     bsrRank: 5120,
@@ -162,26 +213,37 @@ export const INITIAL_PRODUCTS: ProductDeal[] = [
     marketplace: 'Amazon BR',
     currency: 'BRL',
     currentStock: 5,
-    warehouseLocation: 'Braspress em trânsito -> Bessa (PB)'
+    warehouseLocation: 'HelpUS Bessa (João Pessoa/PB) - Coleta DBA'
   },
   {
     id: 'prod-br-nativos-04',
     asin: 'BR-COLAGENO-VITC-60C',
-    sku: 'NAT-COLAG-VITC-60C',
+    sku: 'NAT-COLAG-60CAPS-01',
     ncm: '21069030',
-    title: 'Colágeno Hidrolisado com Vit C 60 Cápsulas - Nativos do Brasil',
+    title: 'Colágeno Hidrolisado com Vitamina C 60 Cápsulas Nativos do Brasil - Firmeza da Pele, Unhas e Cabelos',
     category: 'Suplementos & Vitaminas',
-    imageUrl: '/images/products/nat-colageno-hidro-60c.png',
+    imageUrl: '/images/prontas_amazon/04_Colageno_Hidrolisado_60caps_Amazon.png',
+    fichaUrl: '/images/nativos/04_colageno_completo.jpg',
+    secondaryImages: [
+      '/images/prontas_amazon/04_Colageno_Hidrolisado_Completo_Amazon.png'
+    ],
+    bulletPoints: [
+      'Elasticidade e Firmeza da Pele: Estimula a reposição natural do colágeno.',
+      'Fortalecimento de Cabelos e Unhas: Reduz a fragilidade e quebra.',
+      'Com Vitamina C: Cofator essencial e obrigatório para a síntese biológica de colágeno.',
+      'Cápsulas Práticas: Sem sabor residual, facilitando o consumo no dia a dia.'
+    ],
+    logisticsModel: 'DBA',
     supplierName: 'Nativos do Brasil Produtos Naturais',
     supplierUrl: 'https://www.nativosdobrasil.com.br',
     supplierPrice: 17.93,
-    amazonPrice: 54.90,
-    amazonReferralFee: 8.23,
-    fbaFee: 14.50,
+    amazonPrice: 49.90,
+    amazonReferralFee: 7.49,
+    fbaFee: 12.50,
     prepFee: 2.00,
     inboundShipping: 4.24,
-    netProfit: 8.00,
-    roiPercent: 45,
+    netProfit: 7.74,
+    roiPercent: 35,
     isUngated: true,
     estMonthlySales: 240,
     bsrRank: 2890,
@@ -189,26 +251,37 @@ export const INITIAL_PRODUCTS: ProductDeal[] = [
     marketplace: 'Amazon BR',
     currency: 'BRL',
     currentStock: 5,
-    warehouseLocation: 'Braspress em trânsito -> Bessa (PB)'
+    warehouseLocation: 'HelpUS Bessa (João Pessoa/PB) - Coleta DBA'
   },
   {
     id: 'prod-br-nativos-05',
     asin: 'BR-6-MAGNESIOS-60C',
-    sku: 'NAT-6MAG-60C',
+    sku: 'NAT-6MAG-60CAPS-01',
     ncm: '21069030',
-    title: '6 Magnésios Quelato & Complex 60 Cápsulas - Nativos do Brasil',
+    title: 'Complexo 6 Magnésios 60 Cápsulas Nativos do Brasil - Dimalato, Taurato, Bisglicinato, Treonato, Citrato e Óxido',
     category: 'Suplementos & Vitaminas',
-    imageUrl: '/images/products/nat-6mag-60caps.png',
+    imageUrl: '/images/prontas_amazon/05_6_Magnesios_60caps_Amazon.png',
+    fichaUrl: '/images/nativos/05_6_magnesios_ficha.jpg',
+    secondaryImages: [
+      '/images/prontas_amazon/05_6_Magnesios_Completo_Amazon.png'
+    ],
+    bulletPoints: [
+      'Fórmula Multi-Ação 6 em 1: Reúne 6 das melhores formas biodisponíveis de magnésio.',
+      'Alívio Muscular e Menos Câimbras: Suporte completo para contração muscular e articulações.',
+      'Redução do Estresse e Tensão: Auxilia no equilíbrio do sistema nervoso e relaxamento físico.',
+      'Biodisponibilidade Máxima: Absorção gradual e eficiente em diferentes tecidos.'
+    ],
+    logisticsModel: 'DBA',
     supplierName: 'Nativos do Brasil Produtos Naturais',
     supplierUrl: 'https://www.nativosdobrasil.com.br',
     supplierPrice: 18.41,
-    amazonPrice: 59.90,
-    amazonReferralFee: 8.98,
-    fbaFee: 14.50,
+    amazonPrice: 54.90,
+    amazonReferralFee: 8.24,
+    fbaFee: 12.50,
     prepFee: 2.00,
     inboundShipping: 4.24,
-    netProfit: 13.77,
-    roiPercent: 75,
+    netProfit: 11.51,
+    roiPercent: 51,
     isUngated: true,
     estMonthlySales: 310,
     bsrRank: 1950,
@@ -216,26 +289,37 @@ export const INITIAL_PRODUCTS: ProductDeal[] = [
     marketplace: 'Amazon BR',
     currency: 'BRL',
     currentStock: 5,
-    warehouseLocation: 'Braspress em trânsito -> Bessa (PB)'
+    warehouseLocation: 'HelpUS Bessa (João Pessoa/PB) - Coleta DBA'
   },
   {
     id: 'prod-br-nativos-06',
     asin: 'BR-NAC-ACETILCISTEINA-60C',
-    sku: 'NAT-NAC-60C',
+    sku: 'NAT-NAC-60CAPS-01',
     ncm: '21069030',
-    title: 'NAC Acetilcisteína 60 Cápsulas - Nativos do Brasil',
+    title: 'NAC N-Acetilcisteína 60 Cápsulas Nativos do Brasil - Imunidade, Saúde Pulmonar e Precursor de Glutationa',
     category: 'Suplementos & Vitaminas',
-    imageUrl: '/images/products/nat-nac-60caps.png',
+    imageUrl: '/images/prontas_amazon/06_NAC_Acetilcisteina_60caps_Amazon.png',
+    fichaUrl: '/images/nativos/06_nac_ficha.jpg',
+    secondaryImages: [
+      '/images/prontas_amazon/06_NAC_Acetilcisteina_Completo_Amazon.png'
+    ],
+    bulletPoints: [
+      'Precursor da Glutationa: Estimula a produção do antioxidante mestre do organismo humano.',
+      'Saúde Respiratória e Pulmonar: Auxilia na fluidez e eliminação de secreções das vias aéreas.',
+      'Desintoxicação Celular e Hepática: Suporte vital para o fígado na neutralização de toxinas.',
+      'Defesa Imunológica Reforçada: Fortalece o sistema imune contra agressões externas.'
+    ],
+    logisticsModel: 'DBA',
     supplierName: 'Nativos do Brasil Produtos Naturais',
     supplierUrl: 'https://www.nativosdobrasil.com.br',
     supplierPrice: 17.57,
-    amazonPrice: 54.90,
-    amazonReferralFee: 8.23,
-    fbaFee: 14.50,
+    amazonPrice: 59.90,
+    amazonReferralFee: 8.99,
+    fbaFee: 12.50,
     prepFee: 2.00,
     inboundShipping: 4.24,
-    netProfit: 8.36,
-    roiPercent: 48,
+    netProfit: 16.60,
+    roiPercent: 76,
     isUngated: true,
     estMonthlySales: 190,
     bsrRank: 3840,
@@ -243,7 +327,75 @@ export const INITIAL_PRODUCTS: ProductDeal[] = [
     marketplace: 'Amazon BR',
     currency: 'BRL',
     currentStock: 5,
-    warehouseLocation: 'Braspress em trânsito -> Bessa (PB)'
+    warehouseLocation: 'HelpUS Bessa (João Pessoa/PB) - Coleta DBA'
+  },
+
+  // 🇧🇷 NOVOS PRODUTOS EM HOMOLOGAÇÃO: OPERAÇÃO BRASIL SKINCARE REMOTO (FBA Cajamar/SP)
+  {
+    id: 'prod-br-skincare-kit-01',
+    asin: 'BR-SKINCARE-KIT4-SP',
+    sku: 'HU-SKIN-KIT4-FBA-SP',
+    title: 'Kit Skincare Facial Completo 4 Itens - Sérum Vitamina C, Ácido Hialurônico, Gel Esfoliante & Sabonete Limpeza Profunda',
+    category: 'Beleza & Cuidados Pessoais (Skincare)',
+    imageUrl: '/images/skincare/kit_skincare_derma.jpg',
+    bulletPoints: [
+      'Rotina Completa 4 em 1: Limpeza profunda, esfoliação suave, hidratação hialurônica e ação antioxidante com Vitamina C.',
+      'Marcas Homologadas de São Paulo: Fornecimento direto do polo do Brás/Pari (Distribuidora JCF / RosaGiro).',
+      'Operação 100% Remota FBA: Prep Center GrinStore/PrepTag em SP prepara o kitting e despacha ao CD Cajamar.',
+      'Alta Demanda no Brasil: Categoria campeã de recorrência de compra e ticket médio saudável na Amazon Brasil.'
+    ],
+    logisticsModel: 'FBA',
+    supplierName: 'Distribuidora JCF (Brás/SP) & GrinStore Prep',
+    supplierUrl: 'https://www.jcfvariedades.com.br',
+    supplierPrice: 36.00,
+    amazonPrice: 89.90,
+    amazonReferralFee: 13.49,
+    fbaFee: 16.95,
+    prepFee: 3.50,
+    inboundShipping: 1.50,
+    netProfit: 18.46,
+    roiPercent: 45,
+    isUngated: true,
+    estMonthlySales: 380,
+    bsrRank: 1420,
+    status: 'Candidate',
+    marketplace: 'Amazon BR',
+    currency: 'BRL',
+    currentStock: 0,
+    warehouseLocation: 'Prep Center GrinStore (SP) -> Amazon FBA Cajamar/Betim'
+  },
+  {
+    id: 'prod-br-dyusar-kit-02',
+    asin: 'BR-DYUSAR-CRONO-3P',
+    sku: 'HU-DYUSAR-HAIR3-SP',
+    title: 'Kit Cronograma Capilar Profissional 3 Passos Dyusar - Hidratação, Nutrição & Reconstrução Intensiva',
+    category: 'Beleza & Cuidados Pessoais (Skincare)',
+    imageUrl: '/images/skincare/kit_dyusar_hair.jpg',
+    bulletPoints: [
+      'Tratamento Profissional Salon Grade: Três máscaras concentradas para cronograma capilar de alto impacto.',
+      'Frascos de Alta Densidade: Formulações ricas em aminoácidos, óleos nobres e queratina hidrolisada.',
+      'Faturamento Direto CNPJ HelpUS: Parceria B2B com a Dyusar Professional Hair para atacado e fulfillment.',
+      'Embalagem Segura com Selagem: Kitting e shrink wrap especializado executado por Prep Center parceiro em SP.'
+    ],
+    logisticsModel: 'FBA',
+    supplierName: 'Dyusar Professional Hair & PrepTag SP',
+    supplierUrl: 'https://www.dyusar.com.br',
+    supplierPrice: 48.00,
+    amazonPrice: 119.90,
+    amazonReferralFee: 17.99,
+    fbaFee: 18.50,
+    prepFee: 3.50,
+    inboundShipping: 2.00,
+    netProfit: 29.91,
+    roiPercent: 56,
+    isUngated: true,
+    estMonthlySales: 260,
+    bsrRank: 2150,
+    status: 'Candidate',
+    marketplace: 'Amazon BR',
+    currency: 'BRL',
+    currentStock: 0,
+    warehouseLocation: 'Prep Center PrepTag (Mooca/SP) -> Amazon FBA Cajamar'
   },
 
   // 🇺🇸 CANDIDATOS ADICIONAIS DE SOURCING (EUA Wholesale)
@@ -283,8 +435,41 @@ export const INITIAL_SUPPLIERS: Supplier[] = [
     moq: 'Sem mínimo (On-demand)',
     rating: 5.0,
     shipToPrep: true,
-    notes: 'Centro de preparação oficial nos EUA (Salt Lake City, UT / Springfield, OR). Responsável por receber lotes da China/EUA, inspeção de qualidade, aplicação de etiquetas FNSKU ($1.50) e despacho UPS Ground direto para os galpões FBA da Amazon.',
+    notes: 'Centro de preparação oficial nos EUA (Salt Lake City, UT / Springfield, OR). Responsável por receber lotes da China/EUA, inspeção de qualidade, aplicação de etiquetas FNSKU ($1.50) e despacho UPS Ground direto para o galpão FBA RYY2 da Amazon (White, GA).',
     country: 'US'
+  },
+  {
+    id: 'sup-grinstore',
+    name: 'GrinStore Prep Center & Domicílio Fiscal',
+    category: 'Prep Center FBA/Full & Endereço Fiscal SEFAZ-SP',
+    website: 'https://www.grinstore.com.br',
+    moq: 'Sem mínimo para parceiros FBA',
+    rating: 5.0,
+    shipToPrep: true,
+    notes: 'Galpão em Vargem Grande Paulista/SP. Jurídico homologou domicílio fiscal MEI (CNPJ 67.813.719/0001-12) com emissão de Inscrição Estadual SP. Executa kitting, shrink wrap de kits e envio consolidado aos galpões FBA de Cajamar.',
+    country: 'BR'
+  },
+  {
+    id: 'sup-preptag',
+    name: 'PrepTag Logística (Mooca - SP)',
+    category: 'Prep Center, Kitting & Expedição FBA Cajamar',
+    website: 'https://www.preptag.com.br',
+    moq: 'Sem mínimo',
+    rating: 4.9,
+    shipToPrep: true,
+    notes: 'Prep center na Mooca/SP especializado em cosméticos e kitting para e-commerce. Serviços de montagem de conjuntos, selagem inviolável e expedição diária para os centros de distribuição da Amazon.',
+    country: 'BR'
+  },
+  {
+    id: 'sup-jcf',
+    name: 'Distribuidora JCF (Brás - SP)',
+    category: 'Distribuidora Atacadista de Skincare & Cosméticos',
+    website: 'https://www.jcfvariedades.com.br',
+    moq: 'R$ 200,00 (Frete Grátis SP acima de R$ 350)',
+    rating: 4.9,
+    shipToPrep: true,
+    notes: 'Polo do Brás/SP. Distribuição oficial de marcas campeãs de giro: Max Love, Ruby Rose, Phállebeauty, Porán e Vivai. Pronta entrega com faturamento para o CNPJ HelpUS e entrega expressa nos Prep Centers de SP.',
+    country: 'BR'
   },
   {
     id: 'sup-nativos',
@@ -294,9 +479,31 @@ export const INITIAL_SUPPLIERS: Supplier[] = [
     moq: '30 frascos (Atacado B2B)',
     rating: 4.9,
     shipToPrep: true,
-    notes: 'Fornecedor principal no Brasil (Vila Velha/ES). Fabricante dos 6 SKUs de suplementos de alta rotatividade. Pedido Piloto #3404 pago via PIX (R$ 710,82), com NF-e Nº 00002509 emitida e envio via Braspress para João Pessoa.',
+    notes: 'Fornecedor de nutracêuticos em Vila Velha/ES. Lote piloto #3404 de 30 frascos recebido em João Pessoa/PB via Braspress (NF-e 00002509). Fichas e fotos oficiais homologadas para cadastro no Delivery by Amazon (DBA).',
     country: 'BR',
     cnpjOrEin: '47.693.854/0001-64'
+  },
+  {
+    id: 'sup-dyusar',
+    name: 'Dyusar Professional Hair',
+    category: 'Fabricante de Cosméticos Capilares Profissionais',
+    website: 'https://www.dyusar.com.br',
+    moq: 'Tabela Atacado B2B',
+    rating: 4.8,
+    shipToPrep: true,
+    notes: 'Linha profissional de cronograma capilar e tratamento intensivo. Cotação aberta para fornecimento direto com entrega programada nos parceiros de prep da Grande São Paulo.',
+    country: 'BR'
+  },
+  {
+    id: 'sup-oficialderma',
+    name: 'Oficial Derma & Nutri (Oficial Farma)',
+    category: 'Dermocosméticos & Linha Estética',
+    website: 'https://www.oficialfarma.com.br',
+    moq: 'Atacado B2B',
+    rating: 4.8,
+    shipToPrep: true,
+    notes: 'Catálogo de dermocosméticos de alta performance. Parceria em homologação para faturamento no CNPJ HelpUS e atendimento a clientes Prime na Amazon Brasil.',
+    country: 'BR'
   },
   {
     id: 'sup-teshuai',
@@ -336,13 +543,13 @@ export const INITIAL_SUPPLIERS: Supplier[] = [
 export const INITIAL_SHIPMENTS: PrepShipment[] = [
   {
     id: 'ship-fba-us-01',
-    trackingNumber: '1Z999999999999RYY2',
+    trackingNumber: '1Z03K4F16623668549',
     supplierName: 'Teshuai / Prep Ninjas',
     productTitle: 'HelpUS Reusable Silicone Cable Ties 20-Pack (ASIN B0HLTXWCV7)',
     unitsCount: 50,
-    status: 'En Route to FBA',
+    status: 'Received by Amazon',
     estDeliveryDate: '2026-11-04',
-    origin: 'Prep Ninjas (Salt Lake City, UT)',
+    origin: 'Prep Ninjas (Springfield, OR)',
     destination: 'Amazon Fulfillment Center RYY2 (White, GA)',
     carrier: 'UPS Ground',
     marketplace: 'US'
@@ -353,11 +560,24 @@ export const INITIAL_SHIPMENTS: PrepShipment[] = [
     supplierName: 'Nativos do Brasil (NF-e Nº 00002509)',
     productTitle: 'Lote 30 Frascos Suplementos (6 SKUs Campeões)',
     unitsCount: 30,
-    status: 'In Transit to Prep',
+    status: 'Received by Amazon',
     estDeliveryDate: '2026-11-11',
     origin: 'Vila Velha / ES',
-    destination: 'HelpUS Filial Bessa (João Pessoa / PB)',
+    destination: 'HelpUS Filial Bessa (João Pessoa / PB) - Estoque Local DBA',
     carrier: 'Braspress Cargas Expressas',
+    marketplace: 'BR'
+  },
+  {
+    id: 'ship-br-skincare-sp',
+    trackingNumber: 'REMESSA-PILOTO-SP-01',
+    supplierName: 'Distribuidora JCF (Brás/SP)',
+    productTitle: 'Lote Piloto Kits Skincare Facial 4-em-1',
+    unitsCount: 100,
+    status: 'In Transit to Prep',
+    estDeliveryDate: '2026-11-20',
+    origin: 'Brás / São Paulo (SP)',
+    destination: 'GrinStore Prep Center (Vargem Grande Paulista / SP) -> FBA Cajamar',
+    carrier: 'Logística Própria Fornecedor SP',
     marketplace: 'BR'
   }
 ];
