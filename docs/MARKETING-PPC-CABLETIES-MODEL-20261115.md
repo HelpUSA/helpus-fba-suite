@@ -38,3 +38,23 @@ Sources:
 - https://sellercentral.amazon.com/seller-forums/discussions/t/c71e49a4-8f57-42ea-8d6a-accec5de1ebe
 - https://sellercentral.amazon.com/help/hub/reference/external/G201411300
 - https://advertising.amazon.com/library/guides/acos-advertising-cost-of-sales/
+
+
+## 100-unit pilot reconciliation — Antigravity Order 005 (15 Nov 2026)
+
+**Simulation only; not a sales, advertising or cash-collection ledger.**
+
+| Sales cohort | Units | Customer price | Subtotal |
+| --- | ---: | ---: | ---: |
+| PPC-attributed, no coupon | 30 | $12.99 | $389.70 |
+| Organic, no coupon | 30 | $12.99 | $389.70 |
+| Organic, redeemed $1 coupon | 40 | $11.99 | $479.60 |
+| **Total** | **100** | | **$1,259.00** |
+
+Modeled totals: fulfillment $411, referral fees $189 (rounded $1.95 and $1.80 per unit), COGS $125, inbound $80, coupon variable fee ~$12 (exact 2.5% * $479.60 = **$11.99**), coupon fixed $5 and PPC $96 (300 clicks * $0.32). Prep A $150; prep B $25. **Reported rounded** projected profit is A $191, B $316; using unrounded coupon fees and referral rates changes these totals by pennies. CAC $96 / 30 attributed orders = $3.20, an assumed modeled conversion rate 30/300 = 10%. Ads attributed sales are a distinct cohort; PPC cost is included only once.
+
+**Budget wording correction:** $96/14 days = **$6.86/day**. This is **not within** an advertised $7–10/day execution band; it is a sub-$7 daily average that respects the independent $100 overall cap. A daily cap is distinct from realized daily spend, and Amazon may distribute spend unevenly.
+
+**Cost reconciliation hold:** Scenario A's proposed direct-cash denominator $380 includes $25 packaging (100 * $0.25), whereas the profit/cost schedule above does **not** separately charge $25 packaging. Evidence must establish whether the packaging cost is already included in $1.50 prep (cash item, avoid double count) or incremental (then reduce projected A profit accordingly). **Do not certify A 50.3% cash-capital ROI as realized or finalized.** Scenario B's $230 cash denominator omits packaging and assumes $0.25 optimized prep is feasible; $316/$230 = 137.4% remains illustrative. The reported A $191/$380 = 50.3% is an arithmetic ratio only, pending reconciliation.
+
+**Policy:** Commercial price, budget, CPC, coupon and profitability inputs are estimates. No campaigns, coupons, Amazon Vine, payments, merges, deployments or NeonDB writes are authorized. Any direct integration into DRE must preserve `SIMULATION_ONLY` vs posted/realized financial entries.
