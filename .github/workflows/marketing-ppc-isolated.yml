@@ -1,0 +1,23 @@
+name: Marketing PPC isolated checks
+on:
+  pull_request:
+    paths:
+      - 'scripts/lib/marketing_ppc_model.cjs'
+      - 'scripts/test_marketing_ppc_model.test.cjs'
+      - 'docs/MARKETING-PPC-CABLETIES-MODEL-20261115.md'
+      - '.github/workflows/marketing-ppc-isolated.yml'
+  push:
+    branches:
+      - 'feat/marketing-ppc-cableties-model-20261115'
+jobs:
+  model-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Node syntax
+        run: node --check scripts/lib/marketing_ppc_model.cjs && node --check scripts/test_marketing_ppc_model.test.cjs
+      - name: Pure model tests
+        run: node --test scripts/test_marketing_ppc_model.test.cjs
