@@ -40,7 +40,28 @@ Sources:
 - https://advertising.amazon.com/library/guides/acos-advertising-cost-of-sales/
 
 
-## 100-unit pilot reconciliation — Antigravity Order 005 (15 Nov 2026)
+## Current operational pilot: **50 acquired units** — Antigravity recalibration (15 Nov 2026)
+
+**Authoritative planning quantity: 50 units**, as explicitly confirmed by Master SuperAdmin. The 100-unit illustration below is **superseded for operational planning** and retained strictly as historical mathematical test data. The inventory quantity is *reported by Antigravity*, not independently reconciled to current Seller Central inventory.
+
+| Cohort | Qty | Modeled unit sale price | Gross revenue |
+| --- | ---: | ---: | ---: |
+| PPC attributed (undiscounted) | 15 | $12.99 | $194.85 |
+| Organic (undiscounted) | 15 | $12.99 | $194.85 |
+| Organic coupon redeemed | 20 | $11.99 | $239.80 |
+| **Total** | **50** | | **$629.50** |
+
+PPC: 150 hypothetical clicks * $0.32 = **$48.00** (maximum proposed budget **$50.00**), hypothetical conversion = 15/150 = 10%, modeled CAC = $48/15 = **$3.20 per attributed sale**. Average modeled spend is **$4.80/day for 10 days** or **$6.86/day for 7 days**; neither implies a guaranteed daily delivery schedule. Inventory depletion/returns/reconciliation require separate validation.
+
+Coupon: 20 redemptions, **$5** campaign fixed fee plus **2.5% of $239.80 = $5.995** variable fee, approximately **$11.00** total. Per couponed unit: $0.25 fixed allocation + $0.29975 variable; $1.00 face discount and $0.15 referral-fee saving yield a ~$1.39975 reduction relative to an undiscounted sale before PPC, **not** $1.275. The $1.275 figure in Antigravity's commentary omits part of the charge (the exact net reduction is $1.39975). Actual Seller Central policy/account applicability remains a separate release gate.
+
+Modeled expense totals using *rounded input line items*: fulfillment $205.50, referral $94.50, COGS $62.50, inbound $40.00, PPC $48.00, coupon fixed/variable $11.00; prep A $75.00, prep B $12.50. Total modeled expenses A **$536.50**, B **$474.00**; projected profit A **$93.00**, B **$155.50** before missing expenses and tax. If rates are calculated without per-unit display rounding, the cents differ slightly, and the ledger must establish rounding policy.
+
+Proposed cash-capital illustrations: A $93/$190 = 48.95%, B $155.50/$115 = 135.22%. **Scenario A's denominator includes $12.50 of packaging ($0.25 * 50) not separately recorded in modeled expenses**; if this is additional and not already included in the $1.50 prep, Scenario A's projected profit reduces by $12.50 to **$80.50**, while the ROI needs consistent cash and expense classification. B is projected optimization and cannot be labeled realized. Customer sales taxes, returns, storage, removal fees, actual Amazon Ads costs, coupon redemption rules and accounting settlement may affect realized performance.
+
+No ad campaigns, coupons, Vine enrollments, payments, DB writes or deployments authorized; status **SIMULATION_ONLY / DRAFT / NO-GO**.
+
+## Superseded 100-unit illustration — Order 005 (not current inventory)
 
 **Simulation only; not a sales, advertising or cash-collection ledger.**
 
