@@ -14,7 +14,14 @@ Examples with $1 coupon, 100 redemptions: final consumer price $11.99; coupon pl
 
 Formula: margin before PPC = discounted consumer price - cost of goods - fulfillment - inbound - prep - (discounted consumer price * referral rate) - allocated coupon fees. Break-even ACoS = pre-ad margin / attributed revenue; break-even CPC = pre-ad margin * conversion rate. Modeled TACoS requires verified total sales and ad spend; using an assumed attributed unit share is illustrative and **not an actual KPI**.
 
-The reported `ROI 122%` uses a claimed cash denominator of $3.80 that **does not reconcile** with the stated optimized cost components $1.25 COGS + $0.80 inbound + $0.25 prep = **$2.30**, not $3.80. The extra $1.50 remains unexplained and must be investigated. Do not label this ROI verified.
+## ROI reconciliation — Antigravity local audit, 15 Nov 2026
+
+The originally reported **122% ROI is withdrawn** because it mixed Scenario B profit with a Scenario A cash-capital denominator. The local audit proposes two scenario-specific **cash-capital ROI illustrations**:
+
+- **Scenario A:** $3.38 / ($1.25 COGS + $0.80 inbound + $1.50 outsourced prep + $0.25 packaging) = **88.9%** (rounded). **Unresolved**: packaging $0.25 is not a separate line in the $9.61 total operational-cost stack used to derive the $3.38 profit. Check the source invoice and allocate this cost once, not twice. If it is truly an incremental uncounted operating expense, profit changes and the advertised 88.9% must be recalculated.
+- **Scenario B:** $4.63 / ($1.25 COGS + $0.80 inbound + $0.25 projected prep) = **201.3%** (rounded). This is a **projected cash-capital return**, not a realized investment return. Document what the lower prep price includes (labor, labels, packaging, manufacturer handling, duties, transport) and evidence of actual execution before treating it as verified.
+
+**Do not equate cash-capital ROI with return on total cost.** Total-cost ROIs using the unadjusted input stack are $3.38/$9.61 = 35.2% (A) and $4.63/$8.36 = 55.4% (B). Both calculations exclude ad spend, coupon fees and other unmodeled charges. No ROI should be called *realized* on the basis of this source-only model. Ledger/receipt and cost-allocation evidence are mandatory before release.
 
 ## Governance gates
 
