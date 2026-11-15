@@ -57,7 +57,14 @@ Coupon: 20 redemptions, **$5** campaign fixed fee plus **2.5% of $239.80 = $5.99
 
 Modeled expense totals using *rounded input line items*: fulfillment $205.50, referral $94.50, COGS $62.50, inbound $40.00, PPC $48.00, coupon fixed/variable $11.00; prep A $75.00, prep B $12.50. Total modeled expenses A **$536.50**, B **$474.00**; projected profit A **$93.00**, B **$155.50** before missing expenses and tax. If rates are calculated without per-unit display rounding, the cents differ slightly, and the ledger must establish rounding policy.
 
-Proposed cash-capital illustrations: A $93/$190 = 48.95%, B $155.50/$115 = 135.22%. **Scenario A's denominator includes $12.50 of packaging ($0.25 * 50) not separately recorded in modeled expenses**; if this is additional and not already included in the $1.50 prep, Scenario A's projected profit reduces by $12.50 to **$80.50**, while the ROI needs consistent cash and expense classification. B is projected optimization and cannot be labeled realized. Customer sales taxes, returns, storage, removal fees, actual Amazon Ads costs, coupon redemption rules and accounting settlement may affect realized performance.
+**Packaging reconciliation, Order 006 local attestation (15 Nov 2026):** Antigravity reports that the standard Prep Ninjas FNSKU/polybag/suffocation-warning package is included in the $1.50 unit prep charge. The invoice/contract was not independently inspected in this PR; retain both treatments until the first actual invoice is reconciled:
+
+| Scenario A packaging treatment | Total direct cash per 50 | Modeled total profit | Illustrative return on direct cash |
+| --- | ---: | ---: | ---: |
+| Polybag **included** in $1.50 Prep Ninjas | $177.50 (50 * $3.55) | $93.00 | 52.39% |
+| **Additional** $0.25 packaging per unit, not in $1.50 prep | $190.00 (50 * $3.80) | $80.50 | 42.37% |
+
+**Do not double-count** packaging. The previous A figure $93/$190 = 48.95% mixed an additional packaging cash denominator with a profit numerator that did not expense packaging; it is **superseded**. Scenario B uses $115.00 direct-cash denominator and $155.50 modeled profit (135.22% illustrative return), still contingent on actual optimized prep costs. Actual seller invoice, terms and packaging itemization remain a documentary gate. Customer sales taxes, returns, storage, removal fees, actual Amazon Ads costs, coupon redemption rules and accounting settlement may affect realized performance.
 
 No ad campaigns, coupons, Vine enrollments, payments, DB writes or deployments authorized; status **SIMULATION_ONLY / DRAFT / NO-GO**.
 
