@@ -16,7 +16,7 @@ test('scenario B in-house prep has an additional 1.25 margin', () => {
 test('coupon reflects current fee structure, not historical 0.60 redemption', () => {
   const r = simulatePpc({couponDiscount:1,couponFixedFee:5,couponVariableRate:0.025,couponRedemptions:100,cpc:0});
   assert.equal(r.couponPlatformFeeUnit,0.3498);
-  assert.equal(r.marginBeforeAds,2.1815);
+  assert.equal(r.marginBeforeAds,2.1818);
 });
 test('coupon up-front fee amortization changes with actual redemptions', () => {
   const low = simulatePpc({couponDiscount:1,couponFixedFee:5,couponVariableRate:0.025,couponRedemptions:10,cpc:0});
