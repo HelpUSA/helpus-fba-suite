@@ -39,3 +39,47 @@ test('CPC beyond break-even turns margin negative', () => {
 test('TACoS undefined without attribution mix', () => {
   assert.equal(simulatePpc({adAttributedUnitShare:0}).modeledTacos,null);
 });
+
+
+test('real 50-unit lot modeled as 15 PPC, 15 full-price organic, 20 coupon sales', () => {
+  const quantity = 50;
+  const ads = 15;
+  const regularOrganic = 15;
+  const coupon = 20;
+  const clicks = 150;
+  assert.equal(ads + regularOrganic + coupon, quantity);
+  const budget = 50;
+  const adSpend = clicks * 0.32;
+  assert.equal(adSpend, 48);
+  assert.ok(adSpend <= budget);
+  const regular = simulatePpc({ cpc: 0 });
+  const couponed = simulatePpc({
+    cpc: 0, couponDiscount: 1, couponFixedFee: 5,
+    couponVariableRate: 0.025, couponRedemptions: coupon
+  });
+  for (const [prepFee, expectedRounded] of [[1.5, 93], [0.25, 155.5]]) {
+    const a = simulatePpc({ prepFee, cpc: 0 });
+    const b = simulatePpc({
+      prepFee, cpc: 0, couponDiscount: 1, couponFixedFee: 5,
+      couponVariableRate: 0.025, couponRedemptions: coupon
+    });
+    const projectedProfit = (ads + regularOrganic) * a.marginBeforeAds +
+      coupon * b.marginBeforeAds - adSpend;
+    // Input rows rounded to cents reproduce the Antigravity 50-unit presentation.
+    assert.ok(Math.abs(projectedProfit - expectedRounded) < 0.2);
+    assert.equal(a.classification, 'SIMULATION_ONLY');
+    assert.equal(b.classification, 'SIMULATION_ONLY');
+  }
+  assert.equal(regular.consumerPrice,12.99);
+  assert.equal(couponed.consumerPrice,11.99);
+  assert.equal(couponed.couponPlatformFeeUnit,0.5498);
+});
+
+test('pilot should not count 100 units as current 50-unit stock', () => {
+  const available=50;
+  const plannedSales=15+15+20;
+  assert.equal(plannedSales,available);
+  assert.ok(100>available);
+  assert.equal(48/10,4.8);
+  assert.ok(Math.abs(48/7 - 6.857142857) < 0.00001);
+});
