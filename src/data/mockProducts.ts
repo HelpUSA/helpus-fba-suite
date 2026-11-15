@@ -41,6 +41,10 @@ export interface Supplier {
   notes: string;
   country: 'US' | 'BR' | 'CN';
   cnpjOrEin?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  cityState?: string;
+  relationshipStatus?: 'Active Supplier' | 'Contract Homologated' | 'RFQ Quoted' | 'Pipeline';
 }
 
 export interface PrepShipment {
@@ -427,6 +431,7 @@ export const INITIAL_PRODUCTS: ProductDeal[] = [
 ];
 
 export const INITIAL_SUPPLIERS: Supplier[] = [
+  // --- ESTADOS UNIDOS (3PL, DISTRIBUIDORES & ATACADO) ---
   {
     id: 'sup-prep-ninjas',
     name: 'Prep Ninjas LLC (US 3PL & Prep Center)',
@@ -435,53 +440,343 @@ export const INITIAL_SUPPLIERS: Supplier[] = [
     moq: 'Sem mínimo (On-demand)',
     rating: 5.0,
     shipToPrep: true,
-    notes: 'Centro de preparação oficial nos EUA (Salt Lake City, UT / Springfield, OR). Responsável por receber lotes da China/EUA, inspeção de qualidade, aplicação de etiquetas FNSKU ($1.50) e despacho UPS Ground direto para o galpão FBA RYY2 da Amazon (White, GA).',
-    country: 'US'
+    country: 'US',
+    cityState: 'Springfield, OR / Salt Lake City, UT',
+    relationshipStatus: 'Active Supplier',
+    contactEmail: 'support@prepninjas.com',
+    notes: 'Prep center oficial da HelpUS LLC nos EUA (5250 Highbanks Rd Ste 350, Springfield, OR 97478). Recebeu o lote piloto de 50 packs da China, executou inspeção, etiquetagem FNSKU ($1.50/un) e expedição UPS Ground direto para o CD Amazon RYY2 (White, GA). Fatura #1998 quitada.'
   },
+  {
+    id: 'sup-electriduct',
+    name: 'Electriduct Cable Management',
+    category: 'Distribuidor Atacadista B2B & Acessórios',
+    website: 'https://www.electriduct.com',
+    moq: '25 a 50 packs (Pronta Entrega)',
+    rating: 4.9,
+    shipToPrep: true,
+    country: 'US',
+    cityState: 'Fort Myers, FL',
+    relationshipStatus: 'RFQ Quoted',
+    contactEmail: 'sales@electriduct.com',
+    notes: 'Grande distribuidor de cabeamento e amarres nos EUA. Cotação formal disparada (Ticket #211234) para fornecimento de tiras de silicone reutilizáveis com frete rápido UPS Ground (2 a 5 dias) para o galpão da Prep Ninjas.'
+  },
+  {
+    id: 'sup-cableorganizer',
+    name: 'CableOrganizer.com Wholesale',
+    category: 'Distribuidor Nacional de Cabos & Tiras',
+    website: 'https://www.cableorganizer.com',
+    moq: '50 unidades',
+    rating: 4.8,
+    shipToPrep: true,
+    country: 'US',
+    cityState: 'Flórida, EUA',
+    relationshipStatus: 'RFQ Quoted',
+    contactEmail: 'sales@cableorganizer.com',
+    notes: 'Distribuidor líder de organizadores e tiras de amarração nos EUA. Fornecimento nacional para reposição emergencial de estoque FBA com entrega expressa.'
+  },
+  {
+    id: 'sup-kablekontrol',
+    name: 'Kable Kontrol Wholesale USA',
+    category: 'Atacadista Industrial & B2B Cable Ties',
+    website: 'https://www.kablekontrol.com',
+    moq: '100 unidades',
+    rating: 4.8,
+    shipToPrep: true,
+    country: 'US',
+    cityState: 'EUA',
+    relationshipStatus: 'RFQ Quoted',
+    contactEmail: 'info@kablekontrol.com',
+    notes: 'Fornecedor de linha pesada de tiras e presilhas reutilizáveis. Cotação de teste enviada pela HelpUS para expansão da linha de utilidades FBA.'
+  },
+  {
+    id: 'sup-cabletiesupply',
+    name: 'Cable Tie Supply USA',
+    category: 'Distribuidor Especializado de Presilhas',
+    website: 'https://www.cabletiesupply.com',
+    moq: '50 packs',
+    rating: 4.7,
+    shipToPrep: true,
+    country: 'US',
+    cityState: 'EUA',
+    relationshipStatus: 'RFQ Quoted',
+    contactEmail: 'support@cabletiesupply.com',
+    notes: 'Catálogo completo de presilhas plásticas e de silicone com envio Ground para todos os estados americanos.'
+  },
+  {
+    id: 'sup-wirecare',
+    name: 'Wirecare USA',
+    category: 'Acessórios & Fios Reutilizáveis',
+    website: 'https://www.wirecare.com',
+    moq: 'Variável',
+    rating: 4.8,
+    shipToPrep: true,
+    country: 'US',
+    cityState: 'EUA',
+    relationshipStatus: 'RFQ Quoted',
+    contactEmail: 'info@wirecare.com',
+    notes: 'Distribuidor de tiras e organizadores de alta durabilidade com pronta entrega para reabastecimento FBA.'
+  },
+  {
+    id: 'sup-qualityimprint',
+    name: 'QualityImprint Wholesale USA',
+    category: 'Importador & Atacadista B2B em Lote',
+    website: 'https://www.qualityimprint.com',
+    moq: '100 packs',
+    rating: 4.7,
+    shipToPrep: true,
+    country: 'US',
+    cityState: 'EUA',
+    relationshipStatus: 'RFQ Quoted',
+    contactEmail: 'care@qualityimprint.com',
+    notes: 'Importador de utilidades e brindes promocionais em grande escala para varejo americano.'
+  },
+  {
+    id: 'sup-kole',
+    name: 'Kole Imports & Closeouts',
+    category: 'Distribuidor Atacadista de General Merchandise',
+    website: 'https://www.koleimports.com',
+    moq: '$100 min order',
+    rating: 4.8,
+    shipToPrep: true,
+    country: 'US',
+    cityState: 'Carson, CA',
+    relationshipStatus: 'Active Supplier',
+    notes: 'Parceiro atacadista nos EUA para novos testes de produtos em Home & Kitchen com envio direto para a Prep Ninjas.'
+  },
+
+  // --- CHINA (FABRICANTES OEM & SOURCING DIRETO) ---
+  {
+    id: 'sup-teshuai',
+    name: 'Dongguan HuiXie Hardware / Teshuai Electric Co., Ltd.',
+    category: 'Fabricante OEM Direto de Silicone (Carolyn Zhuo)',
+    website: 'https://teshuai.en.alibaba.com',
+    moq: '50 packs (Lote Piloto) / 2.500 packs (Escala)',
+    rating: 5.0,
+    shipToPrep: true,
+    country: 'CN',
+    cityState: 'Dongguan, Guangdong',
+    relationshipStatus: 'Active Supplier',
+    contactEmail: 'carolyn@shandsome.com',
+    contactPhone: '+86 18218406024',
+    notes: 'Fabricante oficial do lote piloto de 50 packs (1.000 tiras) S-215 (21.5cm, 10 cores) com aviso de sufocação em polybag. Pedido Alibaba Trade Assurance #318233495001023698 ($419.00 USD quitado via DDP Air para Prep Ninjas no Oregon). Contato direto: Carolyn Zhuo / Lam Deng.'
+  },
+  {
+    id: 'sup-kean-silicone',
+    name: 'Shenzhen Kean Silicone Product Co., Ltd.',
+    category: 'Moldagem de Silicone OEM/ODM & Food-Grade',
+    website: 'https://keansilicone.en.alibaba.com',
+    moq: '500 packs',
+    rating: 4.9,
+    shipToPrep: true,
+    country: 'CN',
+    cityState: 'Shenzhen, Guangdong',
+    relationshipStatus: 'Contract Homologated',
+    contactEmail: 'lydia@keansilicone.com',
+    notes: 'Fabricante certificado ISO/FDA de silicone líquido. Negociação conduzida com Lydia Luo; homologado como fornecedor de backup e desenvolvimento de moldes customizados exclusivos HelpUS.'
+  },
+  {
+    id: 'sup-hct-silicone',
+    name: 'HCT Silicone Cable Tie Co., Ltd.',
+    category: 'Fabricante Especializado em Tiras de Silicone',
+    website: 'https://www.hcabletie.com',
+    moq: '1.000 packs',
+    rating: 4.8,
+    shipToPrep: true,
+    country: 'CN',
+    cityState: 'Guangdong',
+    relationshipStatus: 'RFQ Quoted',
+    contactEmail: 'info@hcabletie.com',
+    notes: 'Fabricante direto de organizadores em silicone alimentício. Cotação técnica entregue para futura expansão de catálogo.'
+  },
+  {
+    id: 'sup-shangbo',
+    name: 'Shangbo Plastics Co., Ltd. (Wenzhou Difvan)',
+    category: 'Indústria B2B de Amarres há 20+ Anos',
+    website: 'https://www.cabletiesmanufacturer.com',
+    moq: '2.000 packs',
+    rating: 4.8,
+    shipToPrep: true,
+    country: 'CN',
+    cityState: 'Wenzhou / Anhui',
+    relationshipStatus: 'RFQ Quoted',
+    contactEmail: 'info@cabletiesmanufacturer.com',
+    notes: 'Grande planta industrial na China representada por Riley Fang. Mantido para negociações de containers fechados e grandes tiragens.'
+  },
+  {
+    id: 'sup-taimei',
+    name: 'Dongguan Taimei Silicone Product Co.',
+    category: 'Artefatos de Silicone & Injeção',
+    website: 'https://taimeiwatch.en.alibaba.com',
+    moq: '100 pcs',
+    rating: 4.5,
+    shipToPrep: true,
+    country: 'CN',
+    cityState: 'Dongguan, Guangdong',
+    relationshipStatus: 'RFQ Quoted',
+    contactEmail: 'bin@taimeiwatch.com',
+    notes: 'Cotação recebida de Bin ($60/100pcs + $50 DHL). Custo unitário superior para revenda, mantido no banco como fornecedor alternativo.'
+  },
+
+  // --- BRASIL (PREP CENTERS, DOMICÍLIO FISCAL & LOGÍSTICA) ---
   {
     id: 'sup-grinstore',
     name: 'GrinStore Prep Center & Domicílio Fiscal',
-    category: 'Prep Center FBA/Full & Endereço Fiscal SEFAZ-SP',
+    category: 'Prep Center FBA/Full & Domicílio Fiscal SEFAZ-SP',
     website: 'https://www.grinstore.com.br',
     moq: 'Sem mínimo para parceiros FBA',
     rating: 5.0,
     shipToPrep: true,
-    notes: 'Galpão em Vargem Grande Paulista/SP. Jurídico homologou domicílio fiscal MEI (CNPJ 67.813.719/0001-12) com emissão de Inscrição Estadual SP. Executa kitting, shrink wrap de kits e envio consolidado aos galpões FBA de Cajamar.',
-    country: 'BR'
+    country: 'BR',
+    cityState: 'Vargem Grande Paulista / SP',
+    relationshipStatus: 'Active Supplier',
+    contactEmail: 'contato@grinstore.com.br',
+    notes: 'Galpão em Vargem Grande Paulista/SP gerido por Rafoul Marcos. Jurídico autorizou formalmente a transferência do MEI HelpUS (CNPJ 67.813.719/0001-12) para emissão de Inscrição Estadual SEFAZ-SP. Executa kitting, montagem de kits e envio consolidado aos galpões FBA da Amazon em Cajamar/SP.'
   },
   {
     id: 'sup-preptag',
     name: 'PrepTag Logística (Mooca - SP)',
-    category: 'Prep Center, Kitting & Expedição FBA Cajamar',
+    category: 'Prep Center, Kitting & Endereço Fiscal',
     website: 'https://www.preptag.com.br',
     moq: 'Sem mínimo',
     rating: 4.9,
     shipToPrep: true,
-    notes: 'Prep center na Mooca/SP especializado em cosméticos e kitting para e-commerce. Serviços de montagem de conjuntos, selagem inviolável e expedição diária para os centros de distribuição da Amazon.',
-    country: 'BR'
+    country: 'BR',
+    cityState: 'Mooca, São Paulo / SP',
+    relationshipStatus: 'Contract Homologated',
+    contactEmail: 'comercial@preptag.com.br',
+    notes: 'Prep center na Mooca especializado em cosméticos e kitting para e-commerce. Endereço fiscal cotado (R$ 839,16/ano) e expedição diária para os centros de distribuição da Amazon.'
   },
   {
-    id: 'sup-jcf',
-    name: 'Distribuidora JCF (Brás - SP)',
-    category: 'Distribuidora Atacadista de Skincare & Cosméticos',
-    website: 'https://www.jcfvariedades.com.br',
-    moq: 'R$ 200,00 (Frete Grátis SP acima de R$ 350)',
+    id: 'sup-loghouse',
+    name: 'LogHouse Prep & Fulfillment',
+    category: 'Parceiro Oficial SPN Amazon SP (Kitting & FBA)',
+    website: 'https://www.loghouse.com.br',
+    moq: 'Sem mínimo',
+    rating: 4.8,
+    shipToPrep: true,
+    country: 'BR',
+    cityState: 'São Paulo / SP',
+    relationshipStatus: 'RFQ Quoted',
+    contactEmail: 'comercial@loghouse.com.br',
+    notes: 'Membro oficial da rede de prestadores de serviços da Amazon (SPN). Cotação enviada para serviços de armazenagem e preparação.'
+  },
+  {
+    id: 'sup-rwfull',
+    name: 'RW Full Fulfillment & Prep',
+    category: 'Prep Center Especializado em Full & FBA',
+    website: 'https://rwfull.com.br',
+    moq: 'Sem mínimo',
+    rating: 4.7,
+    shipToPrep: true,
+    country: 'BR',
+    cityState: 'São Paulo / SP',
+    relationshipStatus: 'RFQ Quoted',
+    contactPhone: '(11) 99481-1464',
+    notes: 'Estrutura logística dedicada para montagem de kits, etiquetagem e despacho rápido para marketplaces.'
+  },
+  {
+    id: 'sup-braspress',
+    name: 'Braspress Transportes Urgentes',
+    category: 'Operador Logístico Rodoviário & Coletas DBA',
+    website: 'https://www.braspress.com',
+    moq: 'Cargas Fracionadas',
     rating: 4.9,
     shipToPrep: true,
-    notes: 'Polo do Brás/SP. Distribuição oficial de marcas campeãs de giro: Max Love, Ruby Rose, Phállebeauty, Porán e Vivai. Pronta entrega com faturamento para o CNPJ HelpUS e entrega expressa nos Prep Centers de SP.',
-    country: 'BR'
+    country: 'BR',
+    cityState: 'João Pessoa / PB & Nacional',
+    relationshipStatus: 'Active Supplier',
+    notes: 'Transportadora oficial responsável pelo frete do lote #3404 de 30 frascos (NF-e 00002509) até a filial de Bessa (João Pessoa/PB), com coletas integradas ao Delivery by Amazon (DBA).'
   },
+
+  // --- BRASIL (INDÚSTRIAS & DISTRIBUIDORAS DE PRODUTOS) ---
   {
     id: 'sup-nativos',
-    name: 'Nativos do Brasil Produtos Naturais Ltda',
+    name: 'Nativos do Brasil Indústria e Comércio Ltda',
     category: 'Indústria & Atacado de Suplementos Naturais',
     website: 'https://www.nativosdobrasil.com.br',
     moq: '30 frascos (Atacado B2B)',
+    rating: 5.0,
+    shipToPrep: true,
+    country: 'BR',
+    cityState: 'Vila Velha / ES',
+    relationshipStatus: 'Active Supplier',
+    cnpjOrEin: '47.693.854/0001-64',
+    contactEmail: 'naturaisnativos@gmail.com',
+    notes: 'Fabricante de nutracêuticos. Lote piloto #3404 de 30 frascos recebido em João Pessoa/PB via Braspress (NF-e 00002509, R$ 710,82 pago via PIX). Forneceu as tabelas nutricionais e fotos oficiais de estúdio para o cadastro no Delivery by Amazon (DBA).'
+  },
+  {
+    id: 'sup-jcf',
+    name: 'Distribuidora JCF Variedades (Brás - SP)',
+    category: 'Distribuidora Atacadista de Skincare & Cosméticos',
+    website: 'https://www.jcfvariedades.com.br',
+    moq: 'R$ 200,00 (Frete Grátis SP > R$ 350)',
     rating: 4.9,
     shipToPrep: true,
-    notes: 'Fornecedor de nutracêuticos em Vila Velha/ES. Lote piloto #3404 de 30 frascos recebido em João Pessoa/PB via Braspress (NF-e 00002509). Fichas e fotos oficiais homologadas para cadastro no Delivery by Amazon (DBA).',
     country: 'BR',
-    cnpjOrEin: '47.693.854/0001-64'
+    cityState: 'Brás, São Paulo / SP',
+    relationshipStatus: 'Active Supplier',
+    contactEmail: 'jcfvariedades@gmail.com',
+    contactPhone: '(11) 98244-3988 / (11) 98692-0388',
+    notes: 'Polo comercial do Brás. Distribuição de marcas líderes de giro rápido: Max Love, Ruby Rose, Phállebeauty, Porán e Vivai. Pronta entrega com faturamento para o CNPJ HelpUS e entrega expressa no galpão da GrinStore.'
+  },
+  {
+    id: 'sup-rosagiro',
+    name: 'RosaGiro Atacado de Maquiagens & Skincare',
+    category: 'Distribuidora Atacadista (Pari - SP)',
+    website: 'https://www.rosagiro.com.br',
+    moq: 'R$ 300,00',
+    rating: 4.8,
+    shipToPrep: true,
+    country: 'BR',
+    cityState: 'Pari, São Paulo / SP',
+    relationshipStatus: 'RFQ Quoted',
+    contactEmail: 'rosagiroatacado@gmail.com',
+    notes: 'Atacadista tradicional no Pari/SP com linhas completas de sabonetes faciais, séruns e cremes hidratantes para montagem de kits.'
+  },
+  {
+    id: 'sup-atacadao-cosmeticos',
+    name: 'Atacadão dos Cosméticos SP',
+    category: 'Atacado de Cosméticos & Perfumaria',
+    website: 'https://www.atacadaodoscosmeticos.net.br',
+    moq: 'R$ 250,00',
+    rating: 4.8,
+    shipToPrep: true,
+    country: 'BR',
+    cityState: 'São Paulo / SP',
+    relationshipStatus: 'RFQ Quoted',
+    contactEmail: 'contato@atacadaodoscosmeticos.net.br',
+    contactPhone: '(11) 97878-3787',
+    notes: 'Distribuidor multimarcas com ampla oferta de produtos de higiene e cosméticos corporais.'
+  },
+  {
+    id: 'sup-ciabeauty',
+    name: 'Cia Beauty Atacado de Cosméticos',
+    category: 'Distribuidora Especializada em Beleza & Skincare',
+    website: 'https://www.ciabeauty.com.br',
+    moq: 'R$ 200,00',
+    rating: 4.7,
+    shipToPrep: true,
+    country: 'BR',
+    cityState: 'São Paulo / SP',
+    relationshipStatus: 'RFQ Quoted',
+    contactEmail: 'sac@ciabeauty.com.br',
+    contactPhone: '(11) 93369-9852',
+    notes: 'Parceiro para cotação de produtos faciais e corporais com frete direto para prep centers na capital paulista.'
+  },
+  {
+    id: 'sup-revenda-cosmeticos',
+    name: 'Revenda de Cosméticos (Bom Retiro - SP)',
+    category: 'Atacadista de Cosméticos & Acessórios',
+    website: 'https://www.revendadecosmeticos.com.br',
+    moq: 'R$ 300,00',
+    rating: 4.7,
+    shipToPrep: true,
+    country: 'BR',
+    cityState: 'Bom Retiro, São Paulo / SP',
+    relationshipStatus: 'RFQ Quoted',
+    contactEmail: 'contato@revendadecosmeticos.com.br',
+    contactPhone: '(11) 97197-5967',
+    notes: 'Distribuidora no Bom Retiro com foco em produtos de beleza, máscaras e séruns de alta rotação.'
   },
   {
     id: 'sup-dyusar',
@@ -489,54 +784,27 @@ export const INITIAL_SUPPLIERS: Supplier[] = [
     category: 'Fabricante de Cosméticos Capilares Profissionais',
     website: 'https://www.dyusar.com.br',
     moq: 'Tabela Atacado B2B',
-    rating: 4.8,
+    rating: 4.9,
     shipToPrep: true,
-    notes: 'Linha profissional de cronograma capilar e tratamento intensivo. Cotação aberta para fornecimento direto com entrega programada nos parceiros de prep da Grande São Paulo.',
-    country: 'BR'
+    country: 'BR',
+    cityState: 'São Paulo / SP',
+    relationshipStatus: 'Contract Homologated',
+    contactEmail: 'contato@dyusar.com.br',
+    notes: 'Linha profissional de cronograma capilar e tratamento intensivo. Cotação disparada para fornecimento direto no CNPJ HelpUS com entrega programada nos prep centers de SP.'
   },
   {
     id: 'sup-oficialderma',
     name: 'Oficial Derma & Nutri (Oficial Farma)',
-    category: 'Dermocosméticos & Linha Estética',
+    category: 'Dermocosméticos & Farmácia de Manipulação/Linha Estética',
     website: 'https://www.oficialfarma.com.br',
     moq: 'Atacado B2B',
-    rating: 4.8,
+    rating: 4.9,
     shipToPrep: true,
-    notes: 'Catálogo de dermocosméticos de alta performance. Parceria em homologação para faturamento no CNPJ HelpUS e atendimento a clientes Prime na Amazon Brasil.',
-    country: 'BR'
-  },
-  {
-    id: 'sup-teshuai',
-    name: 'Teshuai Silicone Manufacturing Co.',
-    category: 'Fabricante OEM de Silicone & Utensílios',
-    website: 'https://teshuai.en.alibaba.com',
-    moq: '500 unidades',
-    rating: 4.8,
-    shipToPrep: true,
-    notes: 'Fabricante do produto piloto Reusable Silicone Cable Ties 20-Pack. Em conformidade com normas de aviso de sufocação em polybag e marcação Made in China (Commercial Invoice S-215).',
-    country: 'CN'
-  },
-  {
-    id: 'sup-carolyn',
-    name: 'Carolyn (Shandsome Packaging & Sourcing)',
-    category: 'Embalagens, Acessórios & Insumos Retail',
-    website: 'https://shandsome.com',
-    moq: 'Variável',
-    rating: 4.7,
-    shipToPrep: true,
-    notes: 'Fornecedora parceira de insumos de acabamento, cartões informativos e embalagens para a HelpUS LLC (Invoice 2026.10.16).',
-    country: 'CN'
-  },
-  {
-    id: 'sup-kole',
-    name: 'Kole Imports & Closeouts',
-    category: 'Distribuidor Atacadista EUA',
-    website: 'https://www.koleimports.com',
-    moq: '$100 min order',
-    rating: 4.8,
-    shipToPrep: true,
-    notes: 'Excelente parceiro atacadista nos EUA para novos testes de produtos em Home & Kitchen com envio rápido para Prep Ninjas.',
-    country: 'US'
+    country: 'BR',
+    cityState: 'São Paulo / SP',
+    relationshipStatus: 'Contract Homologated',
+    contactEmail: 'atendimento1@oficialfarma.com.br',
+    notes: 'Catálogo de dermocosméticos e nutracêuticos de alta performance. Cotação oficial solicitada para faturamento direto com entrega em Prep Center homologado.'
   }
 ];
 
