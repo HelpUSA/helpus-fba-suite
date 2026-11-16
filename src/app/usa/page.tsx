@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useLanguage } from '@/context/LanguageContext';
 import { INITIAL_PRODUCTS, INITIAL_SHIPMENTS } from '@/data/mockProducts';
 import {
@@ -11,7 +12,8 @@ import {
   Box,
   MapPin,
   PackageCheck,
-  Sparkles
+  Sparkles,
+  Megaphone
 } from 'lucide-react';
 
 export default function UsaOperationPage() {
@@ -120,15 +122,24 @@ export default function UsaOperationPage() {
             <p className="text-xs text-slate-400">{t.usaProductCardSub}</p>
           </div>
 
-          <a
-            href="https://www.amazon.com/dp/B0HLTXWCV7"
-            target="_blank"
-            rel="noreferrer"
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold flex items-center space-x-2 transition w-fit shadow"
-          >
-            <span>Ver Anúncio na Amazon</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Link
+              href="/marketing"
+              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl text-xs font-bold flex items-center space-x-2 transition w-fit shadow-lg shadow-emerald-500/20"
+            >
+              <Megaphone className="w-3.5 h-3.5" />
+              <span>Configurar Marketing & PPC (50 Un.)</span>
+            </Link>
+            <a
+              href="https://www.amazon.com/dp/B0HLTXWCV7"
+              target="_blank"
+              rel="noreferrer"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold flex items-center space-x-2 transition w-fit shadow"
+            >
+              <span>Ver Anúncio na Amazon</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">

@@ -13,7 +13,8 @@ import {
   X,
   FileText,
   Boxes,
-  Scale
+  Scale,
+  Megaphone
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -51,6 +52,13 @@ export default function Sidebar() {
   ];
 
   const toolsItems = [
+    {
+      href: '/marketing',
+      label: 'Marketing & PPC (50 Un.)',
+      icon: Megaphone,
+      badge: 'NOVO',
+      highlight: true,
+    },
     {
       href: '/dre',
       label: 'DRE Financeiro & P&L',

@@ -69,11 +69,14 @@ export const INITIAL_PRODUCTS: ProductDeal[] = [
     sku: 'HU-SIL-CABLE-FBA-2026',
     title: 'HelpUS Reusable Silicone Cable Ties 20 Pack Cord Management Straps',
     category: 'Tools & Home Improvement',
-    imageUrl: '/images/products/silicone-cable-ties-main.jpg',
+    imageUrl: '/images/marketing/cable-ties/1.jpg',
     secondaryImages: [
-      '/images/products/silicone-cable-ties-catalog.png',
-      '/images/products/silicone-cable-ties-pack.webp',
-      '/images/products/silicone-cable-ties-spec.jpg'
+      '/images/marketing/cable-ties/2.jpg',
+      '/images/marketing/cable-ties/3.jpg',
+      '/images/marketing/cable-ties/4.jpg',
+      '/images/marketing/cable-ties/5.jpg',
+      '/images/marketing/cable-ties/6.jpg',
+      '/images/marketing/cable-ties/7.jpg'
     ],
     bulletPoints: [
       'Reusable High-Elasticity Silicone: Eco-friendly, durable, and weather resistant.',
@@ -84,14 +87,14 @@ export const INITIAL_PRODUCTS: ProductDeal[] = [
     logisticsModel: 'FBA',
     supplierName: 'Teshuai Silicone / Shandsome',
     supplierUrl: 'https://www.amazon.com/dp/B0HLTXWCV7',
-    supplierPrice: 1.90,
+    supplierPrice: 1.25,
     amazonPrice: 12.99,
     amazonReferralFee: 1.95,
     fbaFee: 4.11, // Tarifa reclassificada após ajuste de peso para 0.16 lb no FBA Revenue Calculator
     prepFee: 1.50,
     inboundShipping: 0.80,
-    netProfit: 4.63,
-    roiPercent: 122,
+    netProfit: 3.38,
+    roiPercent: 95,
     isUngated: true,
     estMonthlySales: 450,
     bsrRank: 14200,
