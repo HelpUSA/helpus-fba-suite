@@ -181,11 +181,11 @@ export default function MarketingPage() {
               Central de Configuracão de Marketing & PPC — Lote Piloto (50 Un.)
             </h1>
             <p className="text-sm text-slate-300 max-w-3xl">
-              Painel pronto para execução no <strong>Amazon Seller Central</strong> do produto{' '}
+              Painel de simulação e parametrização (<code>SIMULATION_ONLY</code>) para o <strong>Amazon Seller Central</strong> do produto{' '}
               <span className="text-emerald-400 font-semibold">
                 Reusable Silicone Cable Ties 20-Pack Cord Management Straps
               </span>
-              . Como o produto, o frete e a etiquetagem da <strong>Prep Ninjas</strong> já foram pagos e enviados para a Amazon, os custos de anúncios e cupons são descontados das próprias vendas.
+              . Lote atual fixado exclusivamente no <strong>Cenário A (Prep Ninjas, 50 unidades)</strong>; o Cenário B aplica-se somente a cotações de reposições futuras. A cobrança de anúncios PPC e cupons depende do perfil e método de faturamento configurado no Seller Central (dedução em saldo ou cartão cadastrado).
             </p>
           </div>
 
@@ -237,12 +237,12 @@ export default function MarketingPage() {
 
           <div className="bg-emerald-950/30 border border-emerald-500/40 rounded-xl p-4">
             <div className="flex items-center justify-between text-xs text-emerald-400 font-mono font-bold">
-              <span>DEPÓSITO DA AMAZON NO BANCO</span>
+              <span>REPASSE AMAZON ESTIMADO / NÃO RECEBIDO</span>
               <TrendingUp className="w-4 h-4 text-emerald-400" />
             </div>
             <div className="text-2xl font-bold text-emerald-300 mt-1">+USD 270.50</div>
             <div className="text-[11px] text-emerald-200/80 mt-1">
-              Valor líquido transferido p/ conta HelpUS LLC
+              SIMULATION_ONLY • Antes de liquidação e faturamento real
             </div>
           </div>
 
@@ -872,7 +872,7 @@ export default function MarketingPage() {
               </div>
 
               <div className="flex justify-between pt-3 border-t border-slate-800 text-sm font-bold text-emerald-400">
-                <span>= REPASSE LÍQUIDO DA AMAZON PARA O BANCO HELPUS:</span>
+                <span>= REPASSE AMAZON ESTIMADO / NÃO RECEBIDO (SIMULATION_ONLY):</span>
                 <span>+USD {simResult.amazonNetPayout.toFixed(2)}</span>
               </div>
 
