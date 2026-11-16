@@ -40,6 +40,33 @@ Sources:
 - https://advertising.amazon.com/library/guides/acos-advertising-cost-of-sales/
 
 
+## Current physical lot: 50 units — Master factual clarification (16 Nov 2026)
+
+**Operational basis for the current inventory is Scenario A ONLY** (Prep Ninjas outsourced preparation). The Master has informed Antigravity that 50 Cable Ties units have already been labeled, shipped and physically received/available at Amazon FBA. This is an **owner-reported operational fact**; the connected Seller Central inventory ledger and proof of receipt have not been independently inspected in this PR. Confirm sellable/available versus reserved units in the official settlement and inventory reports before reliance.
+
+**Scenario B is not a valid choice for these 50 units.** In-house/manufacturer preparation at $0.25 applies **only to hypothetical future replenishment purchase orders** and must never inflate the profitability of already-prepared stock.
+
+### Simulated Amazon settlement versus operational profit — current 50-unit Scenario A
+
+| Component | Projected USD |
+| --- | ---: |
+| Gross customer receipts if all 50 sell (30 * $12.99 + 20 * $11.99) | +629.50 |
+| Amazon fulfillment fees | -205.50 |
+| Amazon referral fees, displayed rounded-unit assumptions | -94.50 |
+| Assumed PPC spend (not activated) | -48.00 |
+| Assumed coupon platform fees (not activated) | -11.00 |
+| **Illustrative Amazon disbursement before unmodeled adjustments** | **+270.50** |
+| Already-incurred COGS (reported) | -62.50 |
+| Already-incurred outsourced prep (reported) | -75.00 |
+| Already-incurred inbound freight (reported) | -40.00 |
+| **Illustrative operational profit after listed costs** | **+93.00** |
+
+**Critical classification:** “already-incurred” above is based on the Master's reported operational history, **not independent proof of payment or ledger reconciliation**. The $270.50 value is a conditional future settlement estimate, **not an actual payout**, and is not itself profit. Amazon might debit ad spend to a separate card rather than net it from settlement; therefore payment-channel reconciliation must use the actual Amazon statement, avoiding omission or double-counting. Neither Amazon bank disbursement nor profit may be posted as REALIZADO on the basis of this forecast. Model excludes possible account reserves, refunds, storage, insurance, sales tax, advertising billing arrangements and other adjustments.
+
+The earlier packaging fork remains subject to the Prep Ninjas invoice: if the standard polybag is already included in $1.50, Scenario A modeled profit stays $93; if an incremental $0.25/unit charge exists and is not in the listed costs, modeled profit reduces to **$80.50**. Final cash-capital denominator must match whichever cost allocation the paid invoice substantiates.
+
+**Activation gates unchanged:** no Amazon PPC campaign, coupon, Vine enrollment, merge, deployment, NeonDB writes or money commitments are approved. The 100-unit test case is historical only, and Scenario B is future-restocking simulation only.
+
 ## Current operational pilot: **50 acquired units** — Antigravity recalibration (15 Nov 2026)
 
 **Authoritative planning quantity: 50 units**, as explicitly confirmed by Master SuperAdmin. The 100-unit illustration below is **superseded for operational planning** and retained strictly as historical mathematical test data. The inventory quantity is *reported by Antigravity*, not independently reconciled to current Seller Central inventory.
