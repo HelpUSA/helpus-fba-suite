@@ -95,7 +95,7 @@ Foco, memória e clareza mental para o seu dia a dia! Conheça o Magnésio L-Tre
 
 👉 QUER COMPRAR?
 
-Acesse meu perfil e toque no link da bio para conferir na Amazon Brasil!
+Comente "EU QUERO" aqui embaixo que eu te envio o link direto no seu Direct!
 
 📦 Entrega rápida e segura diretamente pela Amazon.
 
@@ -120,7 +120,7 @@ Proteção celular, imunidade e suporte respiratório! Conheça o NAC N-Acetilci
 
 👉 QUER COMPRAR?
 
-Acesse meu perfil e toque no link da bio para garantir o seu na Amazon Brasil!
+Comente "EU QUERO" aqui embaixo que eu te envio o link direto no seu Direct!
 
 #NativosDoBrasil #NAC #Imunidade #AmazonBrasil #SuplementosAlimentares`,
   },
@@ -143,7 +143,7 @@ Mais energia celular e saúde cardiovascular no seu dia a dia! Embalagem com 60 
 
 👉 QUER COMPRAR?
 
-Acesse meu perfil e toque no link da bio para conferir na Amazon Brasil!
+Comente "EU QUERO" aqui embaixo que eu te envio o link direto no seu Direct!
 
 #NativosDoBrasil #CoenzimaQ10 #EnergiaCelular #AmazonBrasil #SuplementosAlimentares`,
   },
@@ -166,7 +166,7 @@ Combinação sinérgica de 6 fontes de magnésio para energia, sono e saúde mus
 
 👉 QUER COMPRAR?
 
-Toque no link da bio e confira na Amazon Brasil!
+Comente "EU QUERO" aqui embaixo que eu te envio o link direto no seu Direct!
 
 #NativosDoBrasil #6Magnesios #SaudeMuscular #AmazonBrasil #SuplementosAlimentares`,
   },
@@ -189,7 +189,7 @@ Firmeza para a pele, força para cabelos, unhas e articulações!
 
 👉 QUER COMPRAR?
 
-Toque no link da bio e garanta o seu na Amazon Brasil!
+Comente "EU QUERO" aqui embaixo que eu te envio o link direto no seu Direct!
 
 #NativosDoBrasil #ColagenoHidrolisado #BelezaESaude #AmazonBrasil #SuplementosAlimentares`,
   },
@@ -209,7 +209,7 @@ Chega de fios enrolados na mesa, na cozinha ou na mochila! Conheça o kit HelpUS
 🏷️ Cupom de US$ 1.00 OFF ativo na página!
 💰 US$ 12.99 (ou US$ 11.99 com cupom)
 
-👉 Link direto na bio!
+👉 Comente "EU QUERO" que eu te envio o link direto da Amazon US!
 
 #HelpUS #CableManagement #AmazonFinds #TechOrganization #SiliconeCableTies`,
   },
@@ -228,7 +228,7 @@ Chega de fios enrolados na mesa, na cozinha ou na mochila! Conheça o kit HelpUS
 📚 Disponível na Amazon em Português, Inglês e Espanhol
 ✍️ Autor: Wagner Medeiros dos Santos / HelpUS Books Studio
 
-👉 Confira todos os livros no link da bio: amazon.com/author/wagnermedeiros
+👉 Comente "EU QUERO" que eu te envio o link direto ou acesse: amazon.com/author/wagnermedeiros
 
 #PequenosExploradores #LivrosInfantis #EducacaoInfantil #AmazonKDP #WagnerMedeirosDosSantos`,
   },
