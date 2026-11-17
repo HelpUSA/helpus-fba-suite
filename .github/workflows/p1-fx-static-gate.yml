@@ -1,0 +1,74 @@
+name: P1 FX Provenance Static Gate
+
+on:
+  push:
+    branches:
+      - feat/p1-financial-dre-ledger
+      - fix/p1-*
+  pull_request:
+    paths:
+      - 'scripts/migrations/003_fx_provenance_staging_review.sql'
+      - 'scripts/audit_p1_fx_provenance_readonly.js'
+      - 'scripts/check_p1_fx_source_release_gate.js'
+      - 'scripts/lib/bcb_ptax_validation.cjs'
+      - 'scripts/verify_bcb_ptax_source.cjs'
+      - 'scripts/test_p1_fx_*.cjs'
+      - 'scripts/test_p1_bcb_ptax_validation.test.cjs'
+      - 'src/lib/db/postgresClient.ts'
+      - 'src/lib/erpTypes.ts'
+      - 'docs/P1-FX-PROVENANCE-RELEASE-GATE.md'
+      - '.github/workflows/p1-fx-static-gate.yml'
+permissions:
+  contents: read
+concurrency:
+  group: p1-fx-static-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  source-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Syntax-check every P1 standalone command
+        run: |
+          node --check scripts/audit_p1_fx_provenance_readonly.js
+          node --check scripts/check_p1_fx_source_release_gate.js
+          node --check scripts/verify_bcb_ptax_source.cjs
+          node --check scripts/import_bcb_ptax_staging.cjs
+          node --check scripts/approve_fx_batch_staging.cjs
+          node --check scripts/lib/bcb_ptax_validation.cjs
+          node --check scripts/lib/fx_approval_signature.cjs
+      - name: Static SQL / FX provenance / official source tests
+        run: |
+          node --test scripts/test_p1_fx_003_integrity.test.cjs scripts/test_p1_fx_provenance_contract.test.cjs scripts/test_p1_bcb_ptax_validation.test.cjs scripts/test_p1_fx_approval_signature.test.cjs
+      - name: Source release gate must fail closed pending trusted importer
+        shell: bash
+        run: |
+          set +e
+          node scripts/check_p1_fx_source_release_gate.js > /tmp/p1_gate_result.json
+          status=$?
+          set -e
+          cat /tmp/p1_gate_result.json
+          test "$status" -eq 2
+          grep -q '"gate": "BLOCKED_SOURCE_PRECHECK"' /tmp/p1_gate_result.json
+          grep -q '"FX-STATIC-09"' /tmp/p1_gate_result.json
+  next-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: ESLint
+        run: npm run lint
+      - name: Next.js build (without production secrets)
+        run: npm run build
+        env:
+          CI: 'true'

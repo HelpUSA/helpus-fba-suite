@@ -35,6 +35,7 @@ export default function DealsPage() {
     'All',
     'Tools & Home Improvement',
     'Suplementos & Vitaminas',
+    'Beleza & Cuidados Pessoais (Skincare)',
     'Home & Kitchen',
     'Pet Supplies',
     'Office Products'
