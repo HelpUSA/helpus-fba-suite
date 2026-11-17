@@ -19,6 +19,8 @@ import {
   Download,
   Target,
   Ban,
+  Instagram,
+  Share2,
 } from 'lucide-react';
 
 interface KeywordItem {
@@ -73,8 +75,167 @@ const CATALOG_PHOTOS = [
   { file: '16.jpg', title: 'Foto 16 — Composição Final Kit 20-Pack', role: 'Ativo de Fechamento', recommended: false },
 ];
 
+const INSTAGRAM_POSTS = [
+  {
+    id: 'ig-magtreon',
+    status: 'PRONTO P/ POSTAR (#4)',
+    title: 'Magnésio L-Treonato 500mg — Nativos do Brasil',
+    asin: 'B0HR81QWFS',
+    marketplace: 'Amazon Brasil',
+    image: '/images/marketing/instagram/magnesio_treonato_post.png',
+    link: 'https://www.amazon.com.br/dp/B0HR81QWFS',
+    caption: `🧠✨ MAGNÉSIO L-TREONATO 500mg — NATIVOS DO BRASIL
+
+Foco, memória e clareza mental para o seu dia a dia! Conheça o Magnésio L-Treonato Nativos do Brasil, em embalagem com 60 cápsulas.
+
+💚 Nativos do Brasil
+💊 60 cápsulas (500mg)
+🛒 Disponível na Amazon Brasil
+💰 R$ 59,90 (5% OFF no Pix ou levando 2+ unidades!)
+
+👉 QUER COMPRAR?
+
+Acesse meu perfil e toque no link da bio para conferir na Amazon Brasil!
+
+📦 Entrega rápida e segura diretamente pela Amazon.
+
+#NativosDoBrasil #MagnesioTreonato #FocoEMemoria #AmazonBrasil #SuplementosAlimentares`,
+  },
+  {
+    id: 'ig-nac',
+    status: 'PRONTO P/ POSTAR (#5)',
+    title: 'NAC N-Acetilcisteína 470mg — Nativos do Brasil',
+    asin: 'B0HR7FQSKX',
+    marketplace: 'Amazon Brasil',
+    image: '/images/marketing/instagram/nac_post.png',
+    link: 'https://www.amazon.com.br/dp/B0HR7FQSKX',
+    caption: `🛡️🌿 NAC N-ACETILCISTEÍNA 470mg — NATIVOS DO BRASIL
+
+Proteção celular, imunidade e suporte respiratório! Conheça o NAC N-Acetilcisteína Nativos do Brasil com 60 cápsulas.
+
+💚 Nativos do Brasil
+💊 60 cápsulas (470mg)
+🛒 Disponível na Amazon Brasil
+💰 R$ 59,90 (5% OFF no Pix ou levando 2+ unidades!)
+
+👉 QUER COMPRAR?
+
+Acesse meu perfil e toque no link da bio para garantir o seu na Amazon Brasil!
+
+#NativosDoBrasil #NAC #Imunidade #AmazonBrasil #SuplementosAlimentares`,
+  },
+  {
+    id: 'ig-coq10',
+    status: 'PRONTO P/ POSTAR (#6)',
+    title: 'Coenzima Q10 + Vitamina E — Nativos do Brasil',
+    asin: 'B0HR7GXK7N',
+    marketplace: 'Amazon Brasil',
+    image: '/images/marketing/instagram/coq10_post.png',
+    link: 'https://www.amazon.com.br/dp/B0HR7GXK7N',
+    caption: `⚡❤️ COENZIMA Q10 + VITAMINA E — NATIVOS DO BRASIL
+
+Mais energia celular e saúde cardiovascular no seu dia a dia! Embalagem com 60 cápsulas.
+
+💚 Nativos do Brasil
+💊 60 cápsulas
+🛒 Disponível na Amazon Brasil
+💰 R$ 64,90 (5% OFF no Pix ou levando 2+ unidades!)
+
+👉 QUER COMPRAR?
+
+Acesse meu perfil e toque no link da bio para conferir na Amazon Brasil!
+
+#NativosDoBrasil #CoenzimaQ10 #EnergiaCelular #AmazonBrasil #SuplementosAlimentares`,
+  },
+  {
+    id: 'ig-6mag',
+    status: 'PRONTO P/ POSTAR (#7)',
+    title: 'Complexo 6 Magnésios 500mg — Nativos do Brasil',
+    asin: 'B0HR76MXX8',
+    marketplace: 'Amazon Brasil',
+    image: '/images/marketing/instagram/6magnesios_post.png',
+    link: 'https://www.amazon.com.br/dp/B0HR76MXX8',
+    caption: `💪✨ COMPLEXO 6 MAGNÉSIOS 500mg — NATIVOS DO BRASIL
+
+Combinação sinérgica de 6 fontes de magnésio para energia, sono e saúde muscular!
+
+💚 Nativos do Brasil
+💊 60 cápsulas
+🛒 Disponível na Amazon Brasil
+💰 R$ 54,90 (5% OFF no Pix ou levando 2+ unidades!)
+
+👉 QUER COMPRAR?
+
+Toque no link da bio e confira na Amazon Brasil!
+
+#NativosDoBrasil #6Magnesios #SaudeMuscular #AmazonBrasil #SuplementosAlimentares`,
+  },
+  {
+    id: 'ig-colag',
+    status: 'PRONTO P/ POSTAR (#8)',
+    title: 'Colágeno Hidrolisado + Vitamina C — Nativos do Brasil',
+    asin: 'B0HR7LJJZB',
+    marketplace: 'Amazon Brasil',
+    image: '/images/marketing/instagram/colageno_post.png',
+    link: 'https://www.amazon.com.br/dp/B0HR7LJJZB',
+    caption: `✨💆 COLÁGENO HIDROLISADO + VITAMINA C — NATIVOS DO BRASIL
+
+Firmeza para a pele, força para cabelos, unhas e articulações!
+
+💚 Nativos do Brasil
+💊 60 cápsulas
+🛒 Disponível na Amazon Brasil
+💰 R$ 49,90 (5% OFF no Pix ou levando 2+ unidades!)
+
+👉 QUER COMPRAR?
+
+Toque no link da bio e garanta o seu na Amazon Brasil!
+
+#NativosDoBrasil #ColagenoHidrolisado #BelezaESaude #AmazonBrasil #SuplementosAlimentares`,
+  },
+  {
+    id: 'ig-cable',
+    status: 'PRONTO P/ POSTAR (EUA)',
+    title: 'Reusable Silicone Cable Ties 20-Pack (Amazon US)',
+    asin: 'B0HLTXWCV7',
+    marketplace: 'Amazon US',
+    image: '/images/marketing/instagram/cable_ties_post.jpg',
+    link: 'https://www.amazon.com/dp/B0HLTXWCV7',
+    caption: `🔌✨ ORGANIZE SEUS CABOS SEM BAGUNÇA! (AMAZON US)
+
+Chega de fios enrolados na mesa, na cozinha ou na mochila! Conheça o kit HelpUS Reusable Silicone Cable Ties com 20 unidades reutilizáveis.
+
+🇺🇸 Disponível na Amazon EUA (Prime)
+🏷️ Cupom de US$ 1.00 OFF ativo na página!
+💰 US$ 12.99 (ou US$ 11.99 com cupom)
+
+👉 Link direto na bio!
+
+#HelpUS #CableManagement #AmazonFinds #TechOrganization #SiliconeCableTies`,
+  },
+  {
+    id: 'ig-explorers',
+    status: 'PRONTO P/ POSTAR (LIVROS)',
+    title: 'Pequenos Exploradores / Little Explorers (96 Páginas)',
+    asin: 'B0HRSLQX4S',
+    marketplace: 'Amazon KDP',
+    image: '/images/marketing/instagram/pequenos_exploradores_post.jpg',
+    link: 'https://www.amazon.com/author/wagnermedeiros',
+    caption: `🎨🦁 PEQUENOS EXPLORADORES: MEU GRANDE LIVRO DE COLORIR E ATIVIDADES!
+
+96 páginas com animais, alfabeto A-Z, números e jogos de lógica para crianças de 3 a 6 anos!
+
+📚 Disponível na Amazon em Português, Inglês e Espanhol
+✍️ Autor: Wagner Medeiros dos Santos / HelpUS Books Studio
+
+👉 Confira todos os livros no link da bio: amazon.com/author/wagnermedeiros
+
+#PequenosExploradores #LivrosInfantis #EducacaoInfantil #AmazonKDP #WagnerMedeirosDosSantos`,
+  },
+];
+
 export default function MarketingPage() {
-  const [activeTab, setActiveTab] = useState<'ppc' | 'coupon' | 'photos' | 'simulator'>('ppc');
+  const [activeTab, setActiveTab] = useState<'ppc' | 'coupon' | 'photos' | 'simulator' | 'instagram'>('ppc');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [checklist, setChecklist] = useState<Record<string, boolean>>({
     step1: false,
@@ -307,6 +468,18 @@ export default function MarketingPage() {
         >
           <Sliders className="w-4 h-4" />
           <span>4. Simulador Interativo & Auditoria (50 Un.)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('instagram')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition ${
+            activeTab === 'instagram'
+              ? 'bg-pink-500 text-white shadow-md shadow-pink-500/20'
+              : 'bg-slate-900 text-pink-300 hover:bg-slate-800 border border-pink-500/30'
+          }`}
+        >
+          <Instagram className="w-4 h-4" />
+          <span>5. Instagram (@wagnerm3d — Posts Prontos)</span>
         </button>
       </div>
 
@@ -895,6 +1068,94 @@ export default function MarketingPage() {
                 <strong className="text-slate-200">Nota de Governança e Transparência Técnica:</strong> Este painel opera em modo determinístico <code>SIMULATION_ONLY</code>. A aplicação web não executa cobranças automáticas nem altera o banco de dados contábil NeonDB. As ativações de campanhas e cupons ocorrem exclusivamente sob seu comando no portal Amazon Seller Central.
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5: INSTAGRAM (@wagnerm3d) */}
+      {activeTab === 'instagram' && (
+        <div className="space-y-6">
+          <div className="bg-gradient-to-r from-pink-950/40 via-slate-900 to-slate-900 border border-pink-500/30 rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <span className="px-2.5 py-1 rounded-full text-[11px] font-mono font-bold bg-pink-500/20 text-pink-300 border border-pink-500/30">
+                INTEGRAÇÃO SOCIAL • @wagnerm3d (20,7 mil seguidores)
+              </span>
+              <h2 className="text-xl font-bold text-white mt-2 flex items-center gap-2">
+                <Instagram className="w-5 h-5 text-pink-400" />
+                Estúdio de Posts Prontos para o Instagram
+              </h2>
+              <p className="text-xs text-slate-300 mt-1">
+                Todos os posts padronizados no estilo do seu perfil <strong>@wagnerm3d</strong>: baixe a arte, copie a legenda com 1 clique e publique direto no seu Instagram.
+              </p>
+            </div>
+            <a
+              href="https://www.instagram.com/wagnerm3d/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-pink-500 hover:bg-pink-400 text-white transition shrink-0"
+            >
+              <span>Abrir @wagnerm3d</span>
+              <ExternalLink className="w-4 h-4" />
+            </a>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {INSTAGRAM_POSTS.map((post) => (
+              <div
+                key={post.id}
+                className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex flex-col justify-between"
+              >
+                <div>
+                  <div className="relative aspect-square bg-slate-950 flex items-center justify-center overflow-hidden">
+                    <img
+                      src={post.image}
+                      alt={post.title}
+                      className="w-full h-full object-contain p-2"
+                      loading="lazy"
+                    />
+                    <span className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-md text-[10px] font-mono font-bold bg-pink-500 text-white shadow">
+                      {post.status}
+                    </span>
+                    <span className="absolute top-2.5 right-2.5 px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-slate-950/80 text-slate-200 border border-slate-700">
+                      {post.marketplace}
+                    </span>
+                  </div>
+                  <div className="p-4 space-y-2">
+                    <h3 className="text-sm font-bold text-white">{post.title}</h3>
+                    <div className="text-[11px] font-mono text-emerald-400">ASIN: {post.asin}</div>
+                    <pre className="text-[11px] text-slate-300 bg-slate-950 border border-slate-800 rounded-xl p-3 whitespace-pre-wrap font-sans max-h-40 overflow-y-auto">
+                      {post.caption}
+                    </pre>
+                  </div>
+                </div>
+                <div className="p-4 pt-0 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleCopy(post.caption, `cap-${post.id}`)}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-pink-500 hover:bg-pink-400 text-white transition"
+                  >
+                    {copiedId === `cap-${post.id}` ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedId === `cap-${post.id}` ? 'Legenda Copiada!' : 'Copiar Legenda'}</span>
+                  </button>
+                  <a
+                    href={post.image}
+                    download={`${post.asin}_instagram.png`}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
+                    title="Baixar Arte"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                  </a>
+                  <a
+                    href={post.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-emerald-400 transition"
+                    title="Ver na Amazon"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
