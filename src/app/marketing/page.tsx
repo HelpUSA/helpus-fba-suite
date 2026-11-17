@@ -19,7 +19,7 @@ import {
   Download,
   Target,
   Ban,
-  Instagram,
+  Camera,
   Share2,
 } from 'lucide-react';
 
@@ -478,7 +478,7 @@ export default function MarketingPage() {
               : 'bg-slate-900 text-pink-300 hover:bg-slate-800 border border-pink-500/30'
           }`}
         >
-          <Instagram className="w-4 h-4" />
+          <Camera className="w-4 h-4" />
           <span>5. Instagram (@wagnerm3d — Posts Prontos)</span>
         </button>
       </div>
@@ -1081,7 +1081,7 @@ export default function MarketingPage() {
                 INTEGRAÇÃO SOCIAL • @wagnerm3d (20,7 mil seguidores)
               </span>
               <h2 className="text-xl font-bold text-white mt-2 flex items-center gap-2">
-                <Instagram className="w-5 h-5 text-pink-400" />
+                <Camera className="w-5 h-5 text-pink-400" />
                 Estúdio de Posts Prontos para o Instagram
               </h2>
               <p className="text-xs text-slate-300 mt-1">
